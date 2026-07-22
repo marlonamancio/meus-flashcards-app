@@ -1,26 +1,74 @@
 @import "tailwindcss";
 
+/* ─── CSS Variables: Light Mode (default) ─── */
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --background-secondary: #f8fafc;
+  --foreground: #0f172a;
+  --foreground-muted: #64748b;
+  --primary: #f97316;
+  --primary-hover: #ea6c0a;
+  --primary-foreground: #ffffff;
+  --card-bg: #ffffff;
+  --card-border: #e2e8f0;
+  --input-bg: #f8fafc;
+  --input-border: #cbd5e1;
+  --input-border-focus: #f97316;
+  --error: #ef4444;
+
+  /* Study card colors (light mode: question=light, answer=dark) */
+  --card-question-bg: #f8fafc;
+  --card-question-fg: #0f172a;
+  --card-answer-bg: #1e293b;
+  --card-answer-fg: #f1f5f9;
+
+  /* Fonts */
+  --font-sans: var(--font-inter);
+  --font-serif: var(--font-lora);
+  --font-body: var(--font-sans);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* ─── Dark Mode ─── */
+[data-theme="dark"] {
+  --background: #0f172a;
+  --background-secondary: #1e293b;
+  --foreground: #f1f5f9;
+  --foreground-muted: #94a3b8;
+  --card-bg: #1e293b;
+  --card-border: #334155;
+  --input-bg: #1e293b;
+  --input-border: #475569;
+  --input-border-focus: #f97316;
+
+  /* Study card colors inverted in dark mode */
+  --card-question-bg: #1e293b;
+  --card-question-fg: #f1f5f9;
+  --card-answer-bg: #f8fafc;
+  --card-answer-fg: #0f172a;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ─── Font Toggle ─── */
+[data-font="serif"] {
+  --font-body: var(--font-serif);
+}
+
+/* ─── Base Styles ─── */
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: var(--font-body, var(--font-sans));
+  background-color: var(--background);
+  color: var(--foreground);
+  /* Smooth color transitions for theme toggle */
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  min-height: 100dvh;
+  /* Mobile: prevent overscroll bounce */
+  overscroll-behavior: none;
+  /* Safe area for iPhone notch/home indicator */
+  padding-bottom: env(safe-area-inset-bottom);
 }
