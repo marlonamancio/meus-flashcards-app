@@ -113,14 +113,17 @@ O card de ofensiva + badges + barra de meta diária são os três elementos de g
 
 Padrão intencional (não é bug nem tema geral do app): o card de **pergunta** usa fundo claro (mesmo em light mode) e o card de **resposta**, ao virar, usa fundo escuro/invertido — reforça visualmente a transição de "pergunta → resposta". No **dark mode geral do app**, essa lógica se inverte: pergunta em card escuro, resposta em card claro/invertido. Ou seja, o card de resposta é sempre visualmente invertido em relação ao card de pergunta, independente do tema ativo — não é para os dois seguirem exatamente a mesma cor de fundo do tema.
 
-### Padrão de header — decisão final
+### Padrão de header — decisão final (revisado)
 
-Headers distintos por tela (não um header único repetido), com uma faixa de elementos comuns entre eles:
-- **Comum a todas as telas**: ícone + nome do app ("Meus Flashcards"), toggle de tema, avatar
-- **Home**: mantém a variante com saudação personalizada ("Olá, [nome]") + data, no lugar do nome do app
-- **Coleções / Progresso / Perfil**: título da página (ex: "Coleções", "Progresso", "Perfil") no lugar da saudação, mesma faixa de elementos comuns (ícone+nome do app, tema, avatar)
+Três variantes de header, não uma estrutura única compartilhada:
 
-Implementar como um componente de header com "slot" para o conteúdo variável (saudação+data OU título da página), não duplicar o header inteiro por tela.
+1. **Home**: header próprio — saudação personalizada ("Olá, [nome]") + data, toggle de tema, avatar. Tudo numa única faixa, como já implementado.
+2. **Upload ("Novo material")**: header próprio, seguindo o protótipo original — botão de voltar (←) + título "Novo material". Não usa o header comum nem toggle/avatar aqui.
+3. **Coleções / Progresso / Perfil**: estrutura em **duas camadas**, não uma linha só:
+   - **Camada comum (topo)**: ícone/logo + nome do app ("Meus Flashcards"), toggle de tema, avatar — igual nas três telas
+   - **Camada de página (abaixo da comum)**: nome da página (ex: "Coleções") + os componentes específicos daquela tela conforme o protótipo (ex: botão "+" em Coleções, subtítulo em Progresso) — **não** vai na mesma linha do toggle/avatar, fica visualmente abaixo, como um bloco separado
+
+Implementação: a camada comum (item 3) é o único elemento realmente compartilhado entre Coleções/Progresso/Perfil — cada página então renderiza seu próprio bloco de título/componentes logo abaixo, dentro da própria página (não dentro do componente de header comum). **Exceção: Perfil não usa `HeaderTitle`** — o bloco de perfil (avatar, nome, stats) já funciona como identificação visual da página, um título repetido ali ficou redundante/estranho. Coleções e Progresso mantêm o `HeaderTitle`.
 
 ### Demais telas revisadas (protótipo Claude Design)
 

@@ -3,6 +3,8 @@ import { Inbox, Plus, Search } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { getDisplayFirstName } from '@/lib/user-display'
 import { AppShell } from '@/components/layout/AppShell'
+import { Header } from '@/components/layout/Header'
+import { HeaderBrand } from '@/components/layout/HeaderBrand'
 import { HeaderTitle } from '@/components/layout/HeaderTitle'
 
 export default async function ColecoesPage() {
@@ -14,8 +16,9 @@ export default async function ColecoesPage() {
   const displayName = getDisplayFirstName(user)
 
   return (
-    <AppShell displayName={displayName} header={<HeaderTitle title="Coleções" />}>
-      <div className="flex justify-end" style={{ padding: '18px 0 2px' }}>
+    <AppShell header={<Header displayName={displayName}><HeaderBrand /></Header>}>
+      <div className="flex justify-between items-center" style={{ padding: '18px 0 2px' }}>
+        <HeaderTitle title="Coleções" />
         <button
           aria-label="Nova coleção"
           className="flex items-center justify-center rounded-xl flex-none"
@@ -25,7 +28,7 @@ export default async function ColecoesPage() {
         </button>
       </div>
 
-      <div className="relative">
+      <div className="relative mt-3.5">
         <Search size={18} className="absolute" style={{ left: 13, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
         <input
           placeholder="Buscar coleção"

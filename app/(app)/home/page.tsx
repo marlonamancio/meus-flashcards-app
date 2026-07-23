@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getHomeData } from '@/lib/home-data'
 import { getDisplayFirstName } from '@/lib/user-display'
 import { AppShell } from '@/components/layout/AppShell'
+import { Header } from '@/components/layout/Header'
 import { HeaderGreeting } from '@/components/layout/HeaderGreeting'
 import { StreakCard } from '@/components/home/StreakCard'
 import { BadgesRow } from '@/components/home/BadgesRow'
@@ -18,7 +19,7 @@ export default async function HomePage() {
   const { stats, week, badges, collections } = await getHomeData(user.id)
 
   return (
-    <AppShell displayName={displayName} header={<HeaderGreeting displayName={displayName} />}>
+    <AppShell header={<Header displayName={displayName}><HeaderGreeting displayName={displayName} /></Header>}>
       <StreakCard stats={stats} week={week} />
       <BadgesRow badges={badges} />
       <CollectionsList collections={collections} />

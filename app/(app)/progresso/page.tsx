@@ -3,6 +3,8 @@ import { AlertTriangle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { getDisplayFirstName } from '@/lib/user-display'
 import { AppShell } from '@/components/layout/AppShell'
+import { Header } from '@/components/layout/Header'
+import { HeaderBrand } from '@/components/layout/HeaderBrand'
 import { HeaderTitle } from '@/components/layout/HeaderTitle'
 
 const WEEK_LABELS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
@@ -16,9 +18,12 @@ export default async function ProgressoPage() {
   const displayName = getDisplayFirstName(user)
 
   return (
-    <AppShell displayName={displayName} header={<HeaderTitle title="Progresso" />}>
-      <div className="text-[12.5px]" style={{ padding: '18px 0 2px', color: 'var(--muted)' }}>
-        Acompanhe sua evolução no estudo
+    <AppShell header={<Header displayName={displayName}><HeaderBrand /></Header>}>
+      <div style={{ padding: '18px 0 2px' }}>
+        <HeaderTitle title="Progresso" />
+        <div className="text-[12.5px] mt-0.5" style={{ color: 'var(--muted)' }}>
+          Acompanhe sua evolução no estudo
+        </div>
       </div>
 
       <div className="flex gap-[9px] mt-3.5">

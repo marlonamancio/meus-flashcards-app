@@ -1,9 +1,8 @@
 import { redirect } from 'next/navigation'
 import { Sparkles, Upload as UploadIcon } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
-import { getDisplayFirstName } from '@/lib/user-display'
 import { AppShell } from '@/components/layout/AppShell'
-import { HeaderBrand } from '@/components/layout/HeaderBrand'
+import { BackHeader } from '@/components/layout/BackHeader'
 
 export default async function UploadPage() {
   const supabase = await createClient()
@@ -11,16 +10,8 @@ export default async function UploadPage() {
 
   if (!user) redirect('/login')
 
-  const displayName = getDisplayFirstName(user)
-
   return (
-    <AppShell displayName={displayName} header={<HeaderBrand />}>
-      <div style={{ padding: '10px 0 2px' }}>
-        <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.02em' }}>
-          Novo material
-        </h1>
-      </div>
-
+    <AppShell header={<BackHeader title="Novo material" backHref="/home" />}>
       <div
         className="flex gap-1.5 rounded-2xl"
         style={{ padding: 4, marginTop: 16, background: 'var(--surface-2)' }}

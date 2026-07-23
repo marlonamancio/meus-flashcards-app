@@ -3,7 +3,8 @@ import { ChevronRight, Download, Info } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { getDisplayFirstName } from '@/lib/user-display'
 import { AppShell } from '@/components/layout/AppShell'
-import { HeaderTitle } from '@/components/layout/HeaderTitle'
+import { Header } from '@/components/layout/Header'
+import { HeaderBrand } from '@/components/layout/HeaderBrand'
 import { ThemeSwitchRow } from '@/components/perfil/ThemeSwitchRow'
 import { LogoutButton } from '@/components/perfil/LogoutButton'
 
@@ -17,8 +18,8 @@ export default async function PerfilPage() {
   const initial = (displayName ?? 'U').charAt(0).toUpperCase()
 
   return (
-    <AppShell displayName={displayName} header={<HeaderTitle title="Perfil" />}>
-      <div className="flex flex-col items-center text-center" style={{ padding: '14px 0 4px' }}>
+    <AppShell header={<Header displayName={displayName}><HeaderBrand /></Header>}>
+      <div className="flex flex-col items-center text-center" style={{ padding: '18px 0 4px' }}>
         <div
           className="flex items-center justify-center rounded-full text-[28px] font-bold"
           style={{ width: 74, height: 74, background: 'var(--accent-soft)', color: 'var(--accent-strong)' }}
