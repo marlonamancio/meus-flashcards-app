@@ -1,6 +1,6 @@
-import { redirect } from 'next/navigation'
 import { ChevronRight, Download, Info } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { requireUser } from '@/lib/supabase/require-user'
 import { getDisplayFirstName } from '@/lib/user-display'
 import { AppShell } from '@/components/layout/AppShell'
 import { Header } from '@/components/layout/Header'
@@ -10,9 +10,7 @@ import { LogoutButton } from '@/components/perfil/LogoutButton'
 
 export default async function PerfilPage() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) redirect('/login')
+  const user = await requireUser(supabase)
 
   const displayName = getDisplayFirstName(user)
   const initial = (displayName ?? 'U').charAt(0).toUpperCase()
