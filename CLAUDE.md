@@ -58,7 +58,9 @@ Criar flashcards manualmente é o principal atrito que impede o uso consistente 
 
 ## Fora de escopo (v1) — decisões conscientes
 
-- Repetição espaçada (SM-2/FSRS) — algoritmo de agendamento de revisão
+- **Repetição espaçada (SM-2/FSRS) — algoritmo de agendamento de revisão.** Ideias já capturadas para quando essa etapa chegar:
+  - **Rating de 4 níveis** no modo de estudo, substituindo o binário atual "sabia/não sabia": **Não lembrei / Foi difícil / Fui bem / Fácil demais** (equivalente ao padrão Again/Hard/Good/Easy usado por Anki e FSRS). Isso não é só mudança de UI — é o dado de entrada que o algoritmo de repetição espaçada precisa para decidir o próximo intervalo de revisão com mais precisão do que um sim/não. Implica migrar `flashcard_responses.acertou` (boolean) para um campo de rating com 4 níveis quando essa v2 chegar — **manter boolean na v1**, essa migração de schema é trabalho de v2.
+  - **Ordem de apresentação dos cards no modo de estudo**: duas opções a decidir na v2 — embaralhar aleatoriamente os cards da coleção, ou deixar o algoritmo de repetição espaçada decidir a ordem/prioridade com base no progresso registrado (cards com mais erro ou mais próximos do vencimento aparecem primeiro). Provavelmente a segunda opção é a mais valiosa uma vez que a repetição espaçada existir, mas embaralhar pode ser um "modo simples" complementar mesmo sem o algoritmo completo.
 - YouTube ou áudio como fonte de material
 - Exportação para Anki, Quizlet, etc, ou importação de formatos nativos desses apps (ex: .apkg) — a importação via CSV genérico já cobre o caso de uso real (trazer cards já criados), sem precisar suportar formato proprietário de terceiros
 - **Tela de cadastro pública** — conta criada manualmente via Supabase Dashboard na v1 (ver seção "Autenticação"). Cadastro self-service fica para v2.

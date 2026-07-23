@@ -65,13 +65,12 @@ Como usuária, quero identificar quais flashcards eu mais erro, para saber onde 
 **US17 — Alternar tema claro/escuro**
 Como usuária, quero alternar entre modo claro e escuro, para estudar confortavelmente em diferentes condições de luz.
 
-**US18 — Alternar tipo de fonte**
-Como usuária, quero alternar entre fonte sem serifa (padrão) e serifada, para escolher o que é mais confortável para minha leitura.
-
-**US19 — Preferências persistidas**
-Como usuária, quero que minhas escolhas de tema e fonte sejam lembradas entre sessões, para não precisar reconfigurar toda vez.
+**US19 — Preferência de tema persistida**
+Como usuária, quero que minha escolha de tema (claro/escuro) seja lembrada entre sessões, para não precisar reconfigurar toda vez.
 
 ## Acesso e conta
+
+*Nota: não há user story de cadastro público na v1 — a conta é criada manualmente pelo desenvolvedor via Supabase Dashboard. Cadastro self-service fica para v2.*
 
 **US20 — Login**
 Como usuária, quero fazer login com email e senha, para que meus flashcards e meu progresso fiquem privados e protegidos.
@@ -100,7 +99,7 @@ Como usuária, quero ver quantos cards foram importados com sucesso e quantos fo
 
 ## Fora de escopo (v1)
 
-- Repetição espaçada / algoritmo de agendamento de revisão
+- Repetição espaçada / algoritmo de agendamento de revisão — inclui, para quando chegar: rating de 4 níveis no estudo (Não lembrei/Foi difícil/Fui bem/Fácil demais, substituindo sabia/não sabia) e ordem de apresentação por embaralhamento ou por prioridade decidida pelo algoritmo (detalhes técnicos no CLAUDE.md)
 - Importação via YouTube ou áudio
 - Exportação/importação para Anki, Quizlet, etc em formato proprietário (a importação via CSV genérico já cobre o caso de uso real)
 - Imagens geradas por IA nos cards
