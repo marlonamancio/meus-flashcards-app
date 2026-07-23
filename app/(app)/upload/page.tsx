@@ -1,14 +1,12 @@
-import { redirect } from 'next/navigation'
 import { Sparkles, Upload as UploadIcon } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { requireUser } from '@/lib/supabase/require-user'
 import { AppShell } from '@/components/layout/AppShell'
 import { BackHeader } from '@/components/layout/BackHeader'
 
 export default async function UploadPage() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) redirect('/login')
+  await requireUser(supabase)
 
   return (
     <AppShell header={<BackHeader title="Novo material" backHref="/home" />}>

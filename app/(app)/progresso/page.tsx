@@ -1,6 +1,6 @@
-import { redirect } from 'next/navigation'
 import { AlertTriangle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { requireUser } from '@/lib/supabase/require-user'
 import { getDisplayFirstName } from '@/lib/user-display'
 import { AppShell } from '@/components/layout/AppShell'
 import { Header } from '@/components/layout/Header'
@@ -11,9 +11,7 @@ const WEEK_LABELS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
 
 export default async function ProgressoPage() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) redirect('/login')
+  const user = await requireUser(supabase)
 
   const displayName = getDisplayFirstName(user)
 
