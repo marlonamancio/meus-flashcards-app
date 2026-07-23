@@ -1,55 +1,52 @@
 @import "tailwindcss";
 
-/* ─── CSS Variables: Light Mode (default) ─── */
+/* ─── Design tokens (synced from Claude Design: Meus Flashcards — Design mobile) ─── */
 :root {
-  --background: #ffffff;
-  --background-secondary: #f8fafc;
-  --foreground: #0f172a;
-  --foreground-muted: #64748b;
-  --primary: #f97316;
-  --primary-hover: #ea6c0a;
-  --primary-foreground: #ffffff;
-  --card-bg: #ffffff;
-  --card-border: #e2e8f0;
-  --input-bg: #f8fafc;
-  --input-border: #cbd5e1;
-  --input-border-focus: #f97316;
-  --error: #ef4444;
+  --bg: #f8f6f2;
+  --surface: #ffffff;
+  --surface-2: #f1ece4;
+  --text: #1c1917;
+  --muted: #7c756b;
+  --border: #e6e0d7;
+  --shadow: 0 1px 2px rgba(28, 25, 23, 0.05), 0 14px 34px rgba(28, 25, 23, 0.06);
 
-  /* Study card colors (light mode: question=light, answer=dark) */
-  --card-question-bg: #f8fafc;
-  --card-question-fg: #0f172a;
-  --card-answer-bg: #1e293b;
-  --card-answer-fg: #f1f5f9;
+  --accent: #f59e0b;
+  --accent-strong: #d97706;
+  --accent-soft: rgba(245, 158, 11, 0.15);
+  --on-accent: #241700;
 
-  /* Fonts */
-  --font-sans: var(--font-inter);
-  --font-serif: var(--font-lora);
-  --font-body: var(--font-sans);
+  --good: #0d9488;
+  --good-soft: rgba(13, 148, 136, 0.14);
+  --bad: #e2603f;
+  --bad-soft: rgba(226, 96, 63, 0.14);
+  --error: var(--bad);
+
+  /* Study card colors (light mode: question=light, answer=dark — inverted on purpose, see CLAUDE.md) */
+  --card-question-bg: var(--surface);
+  --card-question-fg: var(--text);
+  --card-answer-bg: #1c1917;
+  --card-answer-fg: #f4f1ea;
 }
 
 /* ─── Dark Mode ─── */
 [data-theme="dark"] {
-  --background: #0f172a;
-  --background-secondary: #1e293b;
-  --foreground: #f1f5f9;
-  --foreground-muted: #94a3b8;
-  --card-bg: #1e293b;
-  --card-border: #334155;
-  --input-bg: #1e293b;
-  --input-border: #475569;
-  --input-border-focus: #f97316;
+  --bg: #17140d;
+  --surface: #211c14;
+  --surface-2: #2a241a;
+  --text: #f4f1ea;
+  --muted: #a09789;
+  --border: #332c20;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 16px 36px rgba(0, 0, 0, 0.4);
 
-  /* Study card colors inverted in dark mode */
-  --card-question-bg: #1e293b;
-  --card-question-fg: #f1f5f9;
-  --card-answer-bg: #f8fafc;
-  --card-answer-fg: #0f172a;
-}
+  --accent-soft: rgba(245, 158, 11, 0.17);
+  --good-soft: rgba(13, 148, 136, 0.2);
+  --bad-soft: rgba(226, 96, 63, 0.2);
 
-/* ─── Font Toggle ─── */
-[data-font="serif"] {
-  --font-body: var(--font-serif);
+  /* Study card colors inverted again in dark mode */
+  --card-question-bg: var(--surface);
+  --card-question-fg: var(--text);
+  --card-answer-bg: #f4f1ea;
+  --card-answer-fg: #1c1917;
 }
 
 /* ─── Base Styles ─── */
@@ -58,9 +55,9 @@
 }
 
 html {
-  font-family: var(--font-body, var(--font-sans));
-  background-color: var(--background);
-  color: var(--foreground);
+  font-family: var(--font-inter), system-ui, sans-serif;
+  background-color: var(--bg);
+  color: var(--text);
   /* Smooth color transitions for theme toggle */
   transition: background-color 0.2s ease, color 0.2s ease;
 }

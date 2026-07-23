@@ -17,7 +17,7 @@ Criar flashcards manualmente é o principal atrito que impede o uso consistente 
 - **Modo de estudo** com virada de card e marcação de acerto/erro
 - **Acompanhamento de desempenho**: taxa de acerto por coleção, cards com mais erro, streak de dias de estudo, meta diária
 - **PWA** instalável, mobile-first, com suporte offline para revisão de cards
-- **Dark/light mode** e alternância de fonte (Inter / Lora)
+- **Dark/light mode**
 - Autenticação via email/senha (Supabase Auth)
 
 Escopo completo e decisões de produto documentados em [`CLAUDE.md`](./CLAUDE.md) e [`USER_STORIES.md`](./USER_STORIES.md).

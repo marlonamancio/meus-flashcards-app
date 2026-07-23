@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
-import { Eye, EyeOff, Loader2 } from 'lucide-react'
+import { ArrowRight, Eye, EyeOff, Loader2 } from 'lucide-react'
 
 export function LoginForm() {
   const router = useRouter()
@@ -52,17 +52,29 @@ export function LoginForm() {
     }
   }
 
+  const inputStyle = {
+    background: 'var(--surface)',
+    color: 'var(--text)',
+    borderColor: 'var(--border)',
+  }
+
+  function focusInput(e: React.FocusEvent<HTMLInputElement>) {
+    e.target.style.borderColor = 'var(--accent)'
+    e.target.style.boxShadow = '0 0 0 3px var(--accent-soft)'
+  }
+
+  function blurInput(e: React.FocusEvent<HTMLInputElement>) {
+    e.target.style.borderColor = 'var(--border)'
+    e.target.style.boxShadow = 'none'
+  }
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       {/* Email */}
-      <div className="space-y-1.5">
-        <label
-          htmlFor="email"
-          className="block text-sm font-medium"
-          style={{ color: 'var(--foreground)' }}
-        >
+      <label className="flex flex-col gap-[7px]">
+        <span className="text-[12.5px] font-semibold" style={{ color: 'var(--muted)' }}>
           E-mail
-        </label>
+        </span>
         <input
           id="email"
           type="email"
@@ -71,30 +83,19 @@ export function LoginForm() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="seu@email.com"
-          className={cn(
-            'w-full px-4 py-3 rounded-xl text-sm outline-none transition-all',
-            'border focus:ring-2 focus:ring-orange-500/20'
-          )}
-          style={{
-            background: 'var(--input-bg)',
-            color: 'var(--foreground)',
-            borderColor: 'var(--input-border)',
-          }}
-          onFocus={(e) => e.target.style.borderColor = 'var(--input-border-focus)'}
-          onBlur={(e) => e.target.style.borderColor = 'var(--input-border)'}
+          className="w-full text-[15px] outline-none transition-all border-[1.5px] rounded-[13px]"
+          style={{ ...inputStyle, padding: '14px 15px' }}
+          onFocus={focusInput}
+          onBlur={blurInput}
         />
-      </div>
+      </label>
 
       {/* Password */}
-      <div className="space-y-1.5">
-        <label
-          htmlFor="password"
-          className="block text-sm font-medium"
-          style={{ color: 'var(--foreground)' }}
-        >
+      <label className="flex flex-col gap-[7px]">
+        <span className="text-[12.5px] font-semibold" style={{ color: 'var(--muted)' }}>
           Senha
-        </label>
-        <div className="relative">
+        </span>
+        <div className="relative flex items-center">
           <input
             id="password"
             type={showPassword ? 'text' : 'password'}
@@ -103,23 +104,16 @@ export function LoginForm() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••••"
-            className={cn(
-              'w-full px-4 py-3 pr-12 rounded-xl text-sm outline-none transition-all',
-              'border focus:ring-2 focus:ring-orange-500/20'
-            )}
-            style={{
-              background: 'var(--input-bg)',
-              color: 'var(--foreground)',
-              borderColor: 'var(--input-border)',
-            }}
-            onFocus={(e) => e.target.style.borderColor = 'var(--input-border-focus)'}
-            onBlur={(e) => e.target.style.borderColor = 'var(--input-border)'}
+            className="w-full text-[15px] outline-none transition-all border-[1.5px] rounded-[13px]"
+            style={{ ...inputStyle, padding: '14px 44px 14px 15px' }}
+            onFocus={focusInput}
+            onBlur={blurInput}
           />
           <button
             type="button"
             onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-4 top-1/2 -translate-y-1/2 transition-opacity hover:opacity-70"
-            style={{ color: 'var(--foreground-muted)' }}
+            className="absolute right-[14px] transition-opacity hover:opacity-70"
+            style={{ color: 'var(--muted)' }}
             aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
           >
             {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -128,42 +122,46 @@ export function LoginForm() {
 
         {/* Password hints */}
         {showHints && (
-          <ul className="space-y-1 mt-2">
+          <ul className="space-y-1 mt-1">
             {!passwordHints.length && (
-              <li className="text-xs" style={{ color: 'var(--error)' }}>
+              <li className="text-xs" style={{ color: 'var(--bad)' }}>
                 Mínimo de 10 caracteres
               </li>
             )}
             {!passwordHints.uppercase && (
-              <li className="text-xs" style={{ color: 'var(--error)' }}>
+              <li className="text-xs" style={{ color: 'var(--bad)' }}>
                 Adicione uma letra maiúscula
               </li>
             )}
             {!passwordHints.lowercase && (
-              <li className="text-xs" style={{ color: 'var(--error)' }}>
+              <li className="text-xs" style={{ color: 'var(--bad)' }}>
                 Adicione uma letra minúscula
               </li>
             )}
             {!passwordHints.number && (
-              <li className="text-xs" style={{ color: 'var(--error)' }}>
+              <li className="text-xs" style={{ color: 'var(--bad)' }}>
                 Adicione um número
               </li>
             )}
             {!passwordHints.symbol && (
-              <li className="text-xs" style={{ color: 'var(--error)' }}>
+              <li className="text-xs" style={{ color: 'var(--bad)' }}>
                 Adicione um símbolo (ex: !@#$)
               </li>
             )}
           </ul>
         )}
-      </div>
+      </label>
 
       {/* Error message */}
       {error && (
-        <p className="text-sm px-4 py-3 rounded-xl" style={{
-          color: 'var(--error)',
-          background: 'color-mix(in srgb, var(--error) 10%, transparent)',
-        }}>
+        <p
+          className="text-sm rounded-[13px]"
+          style={{
+            color: 'var(--bad)',
+            background: 'var(--bad-soft)',
+            padding: '12px 15px',
+          }}
+        >
           {error}
         </p>
       )}
@@ -173,27 +171,32 @@ export function LoginForm() {
         type="submit"
         disabled={isLoading}
         className={cn(
-          'w-full py-3 rounded-xl text-sm font-semibold transition-all',
+          'mt-1 flex items-center justify-center gap-2 rounded-[13px] text-[15.5px] font-semibold transition-all',
           'disabled:opacity-60 disabled:cursor-not-allowed',
           'active:scale-[0.98]'
         )}
         style={{
-          background: 'var(--primary)',
-          color: 'var(--primary-foreground)',
+          padding: '15px',
+          background: 'var(--accent)',
+          color: 'var(--on-accent)',
+          boxShadow: '0 8px 20px var(--accent-soft)',
         }}
       >
         {isLoading ? (
-          <span className="flex items-center justify-center gap-2">
+          <>
             <Loader2 size={16} className="animate-spin" />
             Entrando...
-          </span>
+          </>
         ) : (
-          'Entrar'
+          <>
+            Entrar
+            <ArrowRight size={17} strokeWidth={2.4} />
+          </>
         )}
       </button>
 
       {/* Footer note */}
-      <p className="text-center text-xs" style={{ color: 'var(--foreground-muted)' }}>
+      <p className="text-center text-[13.5px] mt-2" style={{ color: 'var(--muted)' }}>
         Acesso restrito. Fale com o administrador para recuperar a senha.
       </p>
     </form>

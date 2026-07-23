@@ -1,16 +1,10 @@
 import type { Metadata, Viewport } from 'next'
-import { Inter, Lora } from 'next/font/google'
+import { Inter } from 'next/font/google'
 import './globals.css'
 
 const inter = Inter({
   subsets: ['latin'],
   variable: '--font-inter',
-  display: 'swap',
-})
-
-const lora = Lora({
-  subsets: ['latin'],
-  variable: '--font-lora',
   display: 'swap',
 })
 
@@ -29,7 +23,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
-  themeColor: '#f97316',
+  themeColor: '#f59e0b',
 }
 
 export default function RootLayout({
@@ -38,39 +32,40 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="pt-BR" suppressHydrationWarning>
+    <html lang="pt-BR" suppressHydrationWarning className={inter.variable}>
       <head>
         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
-        {/* Blocking script: initialize theme and font BEFORE paint to avoid flash */}
+        {/* Blocking script: initialize theme BEFORE paint to avoid flash */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
                 try {
                   var theme = localStorage.getItem('theme') || 'light';
-                  var font = localStorage.getItem('font') || 'sans';
                   document.documentElement.setAttribute('data-theme', theme);
-                  document.documentElement.setAttribute('data-font', font);
                 } catch(e) {}
               })();
             `,
           }}
         />
       </head>
-      <body className={`${inter.variable} ${lora.variable}`}>
+      <body>
         {children}
-        {/* Register service worker */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              if ('serviceWorker' in navigator) {
-                window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js');
-                });
-              }
-            `,
-          }}
-        />
+        {/* Register service worker (production only — in dev it cache-first-intercepts
+            Turbopack's stable chunk URLs and serves stale JS/CSS across recompiles) */}
+        {process.env.NODE_ENV === 'production' && (
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `
+                if ('serviceWorker' in navigator) {
+                  window.addEventListener('load', function() {
+                    navigator.serviceWorker.register('/sw.js');
+                  });
+                }
+              `,
+            }}
+          />
+        )}
       </body>
     </html>
   )

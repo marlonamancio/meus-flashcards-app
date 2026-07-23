@@ -61,6 +61,7 @@ Criar flashcards manualmente é o principal atrito que impede o uso consistente 
 - Repetição espaçada (SM-2/FSRS) — algoritmo de agendamento de revisão
 - YouTube ou áudio como fonte de material
 - Exportação para Anki, Quizlet, etc, ou importação de formatos nativos desses apps (ex: .apkg) — a importação via CSV genérico já cobre o caso de uso real (trazer cards já criados), sem precisar suportar formato proprietário de terceiros
+- **Tela de cadastro pública** — conta criada manualmente via Supabase Dashboard na v1 (ver seção "Autenticação"). Cadastro self-service fica para v2.
 - **Notificações de estudo (push)** — apareceu no protótipo do Claude Design (toggle na tela de Perfil), mas fica para v2: exige permissão do navegador, service worker dedicado e gatilho de backend para disparo, complexidade real além do resto do MVP. Manter o toggle fora do Perfil na v1, ou deixá-lo desabilitado/"em breve" se já estiver no design
 - **Exportar meus cards (CSV)** — também apareceu no protótipo (Perfil), fica para v2. Seria o espelho simples da importação CSV, mas não é essencial para o problema original (ela quer gerar cards, não exportá-los)
 - Imagens geradas por IA nos cards
@@ -76,11 +77,8 @@ Estilo não é prioridade de esforço agora, mas há uma direção clara a segui
 
 - **Moderno, minimalista, foco em legibilidade e simplicidade** — evitar excesso de elementos visuais, priorizar espaço em branco e hierarquia tipográfica clara.
 - **Toque de gamificação** — leve, não invasivo. Pensar em elementos como: streak de dias estudando, pequena animação/feedback ao acertar um card, badge simples por marco atingido (ex: "50 cards revisados"). Não é para virar um app "gameificado" no sentido pesado, é um tempero para engajamento.
-- **Dark mode / light mode** — switch manual pelo usuário (não só seguir o sistema operacional, embora isso possa ser o padrão inicial). Persistir a preferência escolhida.
-- **Alternância de fonte (serifada / sem serifa)** — segundo switch de acessibilidade/preferência de leitura, independente do dark/light mode:
-  - Sem serifa (padrão): **Inter**
-  - Serifada (alternativa): sugestão de **Lora** (Google Fonts) — boa legibilidade em texto longo, moderna sem ser "clássica" demais, funciona bem tanto em telas pequenas quanto grandes. Alternativas caso queira testar outras opções: **Source Serif 4** ou **Literata** (essa última foi desenhada pela Google especificamente para leitura em tela, usada no Google Play Books).
-  - Ambos os switches (tema e fonte) devem ser persistidos (localStorage ou preferência do usuário no banco) e aplicados via CSS variables para troca instantânea sem reload.
+- **Dark mode / light mode** — switch manual pelo usuário (não só seguir o sistema operacional, embora isso possa ser o padrão inicial). Persistir a preferência escolhida (localStorage ou preferência do usuário no banco), aplicada via CSS variables para troca instantânea sem reload.
+- **Tipografia**: apenas **Inter** (Google Fonts) em todo o app. ~~Alternância serifada/sem serifa (Inter/Lora)~~ foi descartada — decisão consciente de simplificar, um switch a menos para manter e testar.
 
 ## Telas de referência (protótipo Claude Design)
 
@@ -115,6 +113,15 @@ O card de ofensiva + badges + barra de meta diária são os três elementos de g
 
 Padrão intencional (não é bug nem tema geral do app): o card de **pergunta** usa fundo claro (mesmo em light mode) e o card de **resposta**, ao virar, usa fundo escuro/invertido — reforça visualmente a transição de "pergunta → resposta". No **dark mode geral do app**, essa lógica se inverte: pergunta em card escuro, resposta em card claro/invertido. Ou seja, o card de resposta é sempre visualmente invertido em relação ao card de pergunta, independente do tema ativo — não é para os dois seguirem exatamente a mesma cor de fundo do tema.
 
+### Padrão de header — decisão final
+
+Headers distintos por tela (não um header único repetido), com uma faixa de elementos comuns entre eles:
+- **Comum a todas as telas**: ícone + nome do app ("Meus Flashcards"), toggle de tema, avatar
+- **Home**: mantém a variante com saudação personalizada ("Olá, [nome]") + data, no lugar do nome do app
+- **Coleções / Progresso / Perfil**: título da página (ex: "Coleções", "Progresso", "Perfil") no lugar da saudação, mesma faixa de elementos comuns (ícone+nome do app, tema, avatar)
+
+Implementar como um componente de header com "slot" para o conteúdo variável (saudação+data OU título da página), não duplicar o header inteiro por tela.
+
 ### Demais telas revisadas (protótipo Claude Design)
 
 Telas de Login, Coleção individual, Coleções, Progresso e Perfil revisadas e aprovadas — estrutura consistente com o escopo e modelo de dados já definidos (taxa de acerto/erro, "onde você mais erra", atividade semanal, evolução por coleção são todos deriváveis de `flashcard_responses` + `daily_activity`, sem necessidade de tabelas novas).
@@ -136,6 +143,8 @@ Telas de Login, Coleção individual, Coleções, Progresso e Perfil revisadas e
   - Service Worker com estratégia de cache (ex: cache-first para assets estáticos, network-first para dados dinâmicos)
   - Funcionalidade offline básica: pelo menos permitir revisar flashcards já sincronizados sem internet (a geração via IA obviamente exige conexão)
   - Instalável (prompt de "adicionar à tela inicial")
+
+**Cuidado conhecido — Service Worker em dev**: o registro do service worker deve rodar apenas em produção (`process.env.NODE_ENV === 'production'`). Em dev com Turbopack, hot reload reescreve o mesmo chunk CSS/JS sob a mesma URL — uma estratégia cache-first (segura em produção, onde assets são content-hashed) serve uma versão desatualizada indefinidamente em dev, causando sintomas enganosos (estilo "sumindo", layout quebrado) que parecem bug de Tailwind/CSS mas são cache do service worker. Se isso acontecer: DevTools → Application → Service Workers → Unregister, depois hard refresh.
 
 ## Performance e segurança (desde o início, não como retrofit)
 
@@ -162,6 +171,8 @@ Mesmo sendo uso restrito a uma única usuária por enquanto, a autenticação en
 - Sessão persistente no PWA (não pedir login toda hora)
 - RLS já citado acima garante isolamento de dados a nível de banco, preparando o terreno caso o app ganhe mais usuários no futuro
 
+**Cadastro de usuária (decisão v1):** não há tela de cadastro pública na v1. A(s) conta(s) são criadas manualmente pelo desenvolvedor via Supabase Dashboard → Authentication → Users → Add user. Isso é suficiente para uso de usuária única e reduz superfície de exposição (sem endpoint público de criação de conta). Tela de cadastro simples fica para v2 (ver "Fora de escopo").
+
 **Política de senha:**
 - Configurar em Supabase Dashboard → Auth → Policies (não é validação implementada no código do app, é configuração da plataforma):
   - Comprimento mínimo: 10-12 caracteres
@@ -175,7 +186,7 @@ Mesmo sendo uso restrito a uma única usuária por enquanto, a autenticação en
 ## Stack técnica sugerida
 
 - **Frontend**: Next.js + Tailwind, mobile-first, PWA (manifest + service worker)
-- **Fontes**: Inter (sem serifa, padrão) e Lora (serifada, alternativa) via Google Fonts, com switch persistido
+- **Fontes**: apenas Inter (Google Fonts) — sem switch de fonte
 - **Tema**: dark/light mode via CSS variables, switch persistido
 - **Backend/DB**: Supabase (Postgres + Auth + Storage) com Row Level Security habilitado desde a primeira tabela
 - **Autenticação**: Supabase Auth (email/senha)
@@ -225,6 +236,8 @@ users
   └── daily_activity (data, cards_revisados, meta_atingida: boolean) — usado para montar o calendário semanal da home
   └── badges (tipo, atingido_em, meta_alvo) — ex: "50 cards revisados", "7 dias de ofensiva"
 ```
+
+**Thresholds confirmados dos badges (v1)**: 50 cards revisados / 7 dias de ofensiva / 100 acertos — valores fixos vindos do protótipo original do Claude Design, confirmados como definitivos (não são placeholder).
 
 Observação: `streak_atual` e `streak_recorde` podem ser calculados a partir de `daily_activity` (derivado) ou mantidos como campos denormalizados em `user_stats` para leitura rápida na home — decisão de implementação, não afeta o escopo funcional.
 
