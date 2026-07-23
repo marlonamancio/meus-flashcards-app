@@ -34,7 +34,7 @@ export type CollectionSummary = {
   accuracyPct: number | null
 }
 
-const COLLECTION_PALETTE = [
+export const COLLECTION_PALETTE = [
   { color: 'var(--accent-strong)', soft: 'var(--accent-soft)' },
   { color: 'var(--good)', soft: 'var(--good-soft)' },
   { color: '#0ea5e9', soft: 'rgba(14,165,233,.14)' },
@@ -44,13 +44,13 @@ const COLLECTION_PALETTE = [
 // A failed query (missing table, RLS denial, network error) must not be mistaken for "no rows
 // yet" — the caller renders an honest empty state for the latter, so a query error has to
 // surface loudly instead of silently producing the same zeros/empty-array shape.
-function assertNoError(error: PostgrestError | null, context: string): void {
+export function assertNoError(error: PostgrestError | null, context: string): void {
   if (error) {
     throw new Error(`Falha ao consultar ${context}: ${error.message}`)
   }
 }
 
-function initials(nome: string): string {
+export function initials(nome: string): string {
   const words = nome.trim().split(/\s+/).filter(Boolean)
   if (words.length === 0) return '?'
   if (words.length === 1) return words[0].slice(0, 2).toUpperCase()
