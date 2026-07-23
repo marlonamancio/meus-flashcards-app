@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
+import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
 
 const WEEK_LABELS = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'] // Segunda a Domingo
@@ -41,6 +41,15 @@ const COLLECTION_PALETTE = [
   { color: '#db2777', soft: 'rgba(219,39,119,.14)' },
 ]
 
+// A failed query (missing table, RLS denial, network error) must not be mistaken for "no rows
+// yet" — the caller renders an honest empty state for the latter, so a query error has to
+// surface loudly instead of silently producing the same zeros/empty-array shape.
+function assertNoError(error: PostgrestError | null, context: string): void {
+  if (error) {
+    throw new Error(`Falha ao consultar ${context}: ${error.message}`)
+  }
+}
+
 function initials(nome: string): string {
   const words = nome.trim().split(/\s+/).filter(Boolean)
   if (words.length === 0) return '?'
@@ -62,11 +71,13 @@ function startOfWeekMonday(d: Date): Date {
 }
 
 export async function getUserStats(supabase: SupabaseClient, userId: string): Promise<UserStats> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('user_stats')
     .select('streak_atual, streak_recorde, meta_diaria_cards, cards_estudados_hoje')
     .eq('user_id', userId)
     .maybeSingle()
+
+  assertNoError(error, 'user_stats')
 
   return {
     streakAtual: data?.streak_atual ?? 0,
@@ -85,12 +96,14 @@ export async function getWeekActivity(supabase: SupabaseClient, userId: string):
     return d
   })
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('daily_activity')
     .select('data, meta_atingida')
     .eq('user_id', userId)
     .gte('data', toISODate(days[0]))
     .lte('data', toISODate(days[6]))
+
+  assertNoError(error, 'daily_activity')
 
   const completedDates = new Set((data ?? []).filter((r) => r.meta_atingida).map((r) => r.data))
   const todayISO = toISODate(today)
@@ -113,7 +126,11 @@ export async function getBadges(
   userId: string,
   stats: UserStats
 ): Promise<BadgeInfo[]> {
-  const [{ count: totalResponses }, { count: totalCorrect }, { data: earnedBadges }] = await Promise.all([
+  const [
+    { count: totalResponses, error: totalError },
+    { count: totalCorrect, error: correctError },
+    { data: earnedBadges, error: badgesError },
+  ] = await Promise.all([
     supabase.from('flashcard_responses').select('id', { count: 'exact', head: true }).eq('user_id', userId),
     supabase
       .from('flashcard_responses')
@@ -122,6 +139,10 @@ export async function getBadges(
       .eq('acertou', true),
     supabase.from('badges').select('tipo, meta_alvo').eq('user_id', userId),
   ])
+
+  assertNoError(totalError, 'flashcard_responses (total)')
+  assertNoError(correctError, 'flashcard_responses (acertos)')
+  assertNoError(badgesError, 'badges')
 
   const currentByType: Record<BadgeInfo['tipo'], number> = {
     cards_revisados: totalResponses ?? 0,
@@ -144,20 +165,28 @@ export async function getBadges(
 }
 
 export async function getCollections(supabase: SupabaseClient, userId: string): Promise<CollectionSummary[]> {
-  const { data: collections } = await supabase
+  const { data: collections, error: collectionsError } = await supabase
     .from('collections')
     .select('id, nome, criado_em')
     .eq('user_id', userId)
     .order('criado_em', { ascending: false })
 
+  assertNoError(collectionsError, 'collections')
+
   if (!collections || collections.length === 0) return []
 
   const collectionIds = collections.map((c) => c.id)
 
-  const [{ data: links }, { data: responses }] = await Promise.all([
+  const [
+    { data: links, error: linksError },
+    { data: responses, error: responsesError },
+  ] = await Promise.all([
     supabase.from('collection_flashcards').select('collection_id, flashcard_id').in('collection_id', collectionIds),
     supabase.from('flashcard_responses').select('flashcard_id, acertou').eq('user_id', userId),
   ])
+
+  assertNoError(linksError, 'collection_flashcards')
+  assertNoError(responsesError, 'flashcard_responses')
 
   const accuracyByFlashcard = new Map<string, { correct: number; total: number }>()
   for (const r of responses ?? []) {

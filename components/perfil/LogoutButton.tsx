@@ -7,23 +7,37 @@ import { createClient } from '@/lib/supabase/client'
 export function LogoutButton() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   async function handleLogout() {
     setLoading(true)
+    setError(null)
     const supabase = createClient()
-    await supabase.auth.signOut()
+    const { error: signOutError } = await supabase.auth.signOut()
+
+    if (signOutError) {
+      setError('Não foi possível sair da conta. Tente novamente.')
+      setLoading(false)
+      return
+    }
+
     router.push('/login')
     router.refresh()
   }
 
   return (
-    <button
-      onClick={handleLogout}
-      disabled={loading}
-      className="text-left rounded-2xl text-sm font-semibold disabled:opacity-60"
-      style={{ padding: 15, background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--bad)' }}
-    >
-      {loading ? 'Saindo...' : 'Sair da conta'}
-    </button>
+    <div className="flex flex-col gap-2">
+      <button
+        onClick={handleLogout}
+        disabled={loading}
+        className="text-left rounded-2xl text-sm font-semibold disabled:opacity-60"
+        style={{ padding: 15, background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--bad)' }}
+      >
+        {loading ? 'Saindo...' : 'Sair da conta'}
+      </button>
+      {error && (
+        <p className="text-xs" style={{ color: 'var(--bad)' }}>{error}</p>
+      )}
+    </div>
   )
 }
