@@ -4,7 +4,9 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
+import { getPasswordHints, isPasswordValid } from '@/lib/password-policy'
 import { Alert } from '@/components/ui/Alert'
+import { PasswordHintsList } from '@/components/ui/PasswordHintsList'
 import { ArrowRight, Eye, EyeOff, Loader2 } from 'lucide-react'
 
 export function LoginForm() {
@@ -15,16 +17,8 @@ export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Client-side password validation (mirrors Supabase policy for UX feedback only)
-  const passwordHints = {
-    length: password.length >= 10,
-    uppercase: /[A-Z]/.test(password),
-    lowercase: /[a-z]/.test(password),
-    number: /[0-9]/.test(password),
-    symbol: /[^A-Za-z0-9]/.test(password),
-  }
-  const isPasswordValid = Object.values(passwordHints).every(Boolean)
-  const showHints = password.length > 0 && !isPasswordValid
+  const passwordHints = getPasswordHints(password)
+  const showHints = password.length > 0 && !isPasswordValid(passwordHints)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -122,35 +116,7 @@ export function LoginForm() {
         </div>
 
         {/* Password hints */}
-        {showHints && (
-          <ul className="space-y-1 mt-1">
-            {!passwordHints.length && (
-              <li className="text-xs" style={{ color: 'var(--bad)' }}>
-                Mínimo de 10 caracteres
-              </li>
-            )}
-            {!passwordHints.uppercase && (
-              <li className="text-xs" style={{ color: 'var(--bad)' }}>
-                Adicione uma letra maiúscula
-              </li>
-            )}
-            {!passwordHints.lowercase && (
-              <li className="text-xs" style={{ color: 'var(--bad)' }}>
-                Adicione uma letra minúscula
-              </li>
-            )}
-            {!passwordHints.number && (
-              <li className="text-xs" style={{ color: 'var(--bad)' }}>
-                Adicione um número
-              </li>
-            )}
-            {!passwordHints.symbol && (
-              <li className="text-xs" style={{ color: 'var(--bad)' }}>
-                Adicione um símbolo (ex: !@#$)
-              </li>
-            )}
-          </ul>
-        )}
+        {showHints && <PasswordHintsList hints={passwordHints} />}
       </label>
 
       {/* Error message */}

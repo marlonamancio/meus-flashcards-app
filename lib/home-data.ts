@@ -1,5 +1,8 @@
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
+import { COLLECTION_PALETTE, initials } from '@/lib/palette'
+
+export { COLLECTION_PALETTE, initials }
 
 const WEEK_LABELS = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'] // Segunda a Domingo
 
@@ -7,6 +10,13 @@ export type WeekDay = {
   label: string
   isToday: boolean
   completed: boolean
+  cardsRevisados: number
+}
+
+export type OverallStats = {
+  streakAtual: number
+  totalReviews: number
+  avgAccuracyPct: number | null
 }
 
 export type UserStats = {
@@ -34,13 +44,6 @@ export type CollectionSummary = {
   accuracyPct: number | null
 }
 
-export const COLLECTION_PALETTE = [
-  { color: 'var(--accent-strong)', soft: 'var(--accent-soft)' },
-  { color: 'var(--good)', soft: 'var(--good-soft)' },
-  { color: '#0ea5e9', soft: 'rgba(14,165,233,.14)' },
-  { color: '#db2777', soft: 'rgba(219,39,119,.14)' },
-]
-
 // A failed query (missing table, RLS denial, network error) must not be mistaken for "no rows
 // yet" — the caller renders an honest empty state for the latter, so a query error has to
 // surface loudly instead of silently producing the same zeros/empty-array shape.
@@ -48,13 +51,6 @@ export function assertNoError(error: PostgrestError | null, context: string): vo
   if (error) {
     throw new Error(`Falha ao consultar ${context}: ${error.message}`)
   }
-}
-
-export function initials(nome: string): string {
-  const words = nome.trim().split(/\s+/).filter(Boolean)
-  if (words.length === 0) return '?'
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase()
-  return (words[0][0] + words[1][0]).toUpperCase()
 }
 
 const TIMEZONE = 'America/Sao_Paulo'
@@ -114,7 +110,7 @@ export async function getWeekActivity(supabase: SupabaseClient, userId: string):
 
   const { data, error } = await supabase
     .from('daily_activity')
-    .select('data, meta_atingida')
+    .select('data, meta_atingida, cards_revisados')
     .eq('user_id', userId)
     .gte('data', daysISO[0])
     .lte('data', daysISO[6])
@@ -122,12 +118,38 @@ export async function getWeekActivity(supabase: SupabaseClient, userId: string):
   assertNoError(error, 'daily_activity')
 
   const completedDates = new Set((data ?? []).filter((r) => r.meta_atingida).map((r) => r.data))
+  const revisadosByDate = new Map((data ?? []).map((r) => [r.data, r.cards_revisados as number]))
 
   return daysISO.map((iso, i) => ({
     label: WEEK_LABELS[i],
     isToday: iso === todayISO,
     completed: completedDates.has(iso),
+    cardsRevisados: revisadosByDate.get(iso) ?? 0,
   }))
+}
+
+// Shared by Perfil and Progresso — both show the same "ofensiva / revisões / acerto" headline
+// numbers, just styled differently.
+export async function getOverallStats(supabase: SupabaseClient, userId: string): Promise<OverallStats> {
+  const [{ data: statsRow, error: statsError }, { count: totalReviews, error: totalError }, { count: totalCorrect, error: correctError }] =
+    await Promise.all([
+      supabase.from('user_stats').select('streak_atual').eq('user_id', userId).maybeSingle(),
+      supabase.from('flashcard_responses').select('id', { count: 'exact', head: true }).eq('user_id', userId),
+      supabase.from('flashcard_responses').select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('acertou', true),
+    ])
+
+  assertNoError(statsError, 'user_stats')
+  assertNoError(totalError, 'flashcard_responses (total)')
+  assertNoError(correctError, 'flashcard_responses (acertos)')
+
+  const total = totalReviews ?? 0
+  const correct = totalCorrect ?? 0
+
+  return {
+    streakAtual: statsRow?.streak_atual ?? 0,
+    totalReviews: total,
+    avgAccuracyPct: total > 0 ? Math.round((correct / total) * 100) : null,
+  }
 }
 
 export const BADGE_DEFS: { tipo: BadgeInfo['tipo']; label: string; target: number }[] = [

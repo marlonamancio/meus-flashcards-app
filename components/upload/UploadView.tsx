@@ -21,6 +21,12 @@ export function UploadView({ collections }: { collections: CollectionOption[] })
         >
           <Sparkles size={15} strokeWidth={2} />
           Gerar com IA
+          <span
+            className="text-[9px] font-bold uppercase rounded-full"
+            style={{ padding: '2px 6px', letterSpacing: '0.02em', background: 'var(--accent-soft)', color: 'var(--accent-strong)' }}
+          >
+            Em breve
+          </span>
         </button>
         <button
           onClick={() => setTab('csv')}

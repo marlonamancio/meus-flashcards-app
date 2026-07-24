@@ -1,39 +1,41 @@
-import { ChevronRight, Download, Info } from 'lucide-react'
+import { ChevronRight, Info } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { requireUser } from '@/lib/supabase/require-user'
-import { getDisplayFirstName } from '@/lib/user-display'
+import { getDisplayFirstName, getDisplayName, getUserAvatarPalette } from '@/lib/user-display'
+import { getOverallStats, getUserStats } from '@/lib/home-data'
 import { AppShell } from '@/components/layout/AppShell'
 import { Header } from '@/components/layout/Header'
 import { HeaderBrand } from '@/components/layout/HeaderBrand'
 import { ThemeSwitchRow } from '@/components/perfil/ThemeSwitchRow'
 import { LogoutButton } from '@/components/perfil/LogoutButton'
+import { DailyGoalStepper } from '@/components/perfil/DailyGoalStepper'
+import { InstallAppRow } from '@/components/perfil/InstallAppRow'
+import { DeleteAccountSection } from '@/components/perfil/DeleteAccountSection'
+import { ProfileIdentity } from '@/components/perfil/ProfileIdentity'
+import { ChangePasswordForm } from '@/components/perfil/ChangePasswordForm'
 
 export default async function PerfilPage() {
   const supabase = await createClient()
   const user = await requireUser(supabase)
 
   const displayName = getDisplayFirstName(user)
-  const initial = (displayName ?? 'U').charAt(0).toUpperCase()
+  const fullName = getDisplayName(user)
+  const avatarPalette = getUserAvatarPalette(user)
+
+  const [overall, userStats] = await Promise.all([getOverallStats(supabase, user.id), getUserStats(supabase, user.id)])
+
+  const stats = [
+    { label: 'ofensiva', value: String(overall.streakAtual) },
+    { label: 'revisões', value: String(overall.totalReviews) },
+    { label: 'acerto', value: overall.avgAccuracyPct !== null ? `${overall.avgAccuracyPct}%` : '—', color: 'var(--good)' },
+  ]
 
   return (
-    <AppShell header={<Header displayName={displayName}><HeaderBrand /></Header>}>
-      <div className="flex flex-col items-center text-center" style={{ padding: '18px 0 4px' }}>
-        <div
-          className="flex items-center justify-center rounded-full text-[28px] font-bold"
-          style={{ width: 74, height: 74, background: 'var(--accent-soft)', color: 'var(--accent-strong)' }}
-        >
-          {initial}
-        </div>
-        <div className="text-[19px] font-bold mt-3">{displayName ?? 'Usuária'}</div>
-        <div className="text-[13px] mt-0.5" style={{ color: 'var(--muted)' }}>{user.email}</div>
-      </div>
+    <AppShell header={<Header displayName={displayName} avatarPalette={avatarPalette}><HeaderBrand /></Header>}>
+      <ProfileIdentity initialName={fullName} email={user.email ?? ''} initialAvatarColor={user.user_metadata?.avatarColor ?? null} />
 
       <div className="flex gap-[9px] mt-5">
-        {[
-          { label: 'ofensiva', value: '0' },
-          { label: 'revisões', value: '0' },
-          { label: 'acerto', value: '—', color: 'var(--good)' },
-        ].map((stat) => (
+        {stats.map((stat) => (
           <div
             key={stat.label}
             className="flex-1 text-center rounded-2xl"
@@ -52,32 +54,17 @@ export default async function PerfilPage() {
         Estudo
       </div>
       <div className="flex flex-col gap-2">
-        <div
-          className="flex items-center justify-between rounded-2xl"
-          style={{ padding: '14px 15px', background: 'var(--surface)', border: '1px solid var(--border)' }}
-        >
-          <div>
-            <div className="text-sm font-semibold">Meta diária</div>
-            <div className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>cards por dia</div>
-          </div>
-          <div className="flex items-center gap-3">
-            <span
-              className="flex items-center justify-center rounded-lg text-lg"
-              style={{ width: 30, height: 30, background: 'var(--surface-2)', border: '1px solid var(--border)' }}
-            >
-              −
-            </span>
-            <span className="text-[15px] font-bold" style={{ minWidth: 26, textAlign: 'center' }}>10</span>
-            <span
-              className="flex items-center justify-center rounded-lg text-lg"
-              style={{ width: 30, height: 30, background: 'var(--surface-2)', border: '1px solid var(--border)' }}
-            >
-              +
-            </span>
-          </div>
-        </div>
+        <DailyGoalStepper initialValue={userStats.metaDiariaCards} />
         <ThemeSwitchRow />
       </div>
+
+      <div
+        className="text-[11.5px] font-bold uppercase"
+        style={{ color: 'var(--muted)', letterSpacing: '0.06em', margin: '24px 0 10px' }}
+      >
+        Segurança
+      </div>
+      <ChangePasswordForm />
 
       <div
         className="text-[11.5px] font-bold uppercase"
@@ -86,14 +73,7 @@ export default async function PerfilPage() {
         App
       </div>
       <div className="flex flex-col gap-2">
-        <div
-          className="flex items-center gap-3 rounded-2xl"
-          style={{ padding: 15, background: 'var(--surface)', border: '1px solid var(--border)' }}
-        >
-          <Download size={19} strokeWidth={1.9} style={{ color: 'var(--muted)' }} />
-          <span className="flex-1 text-sm font-semibold">Instalar o app</span>
-          <ChevronRight size={17} style={{ color: 'var(--muted)' }} />
-        </div>
+        <InstallAppRow />
         <div
           className="flex items-center gap-3 rounded-2xl"
           style={{ padding: 15, background: 'var(--surface)', border: '1px solid var(--border)' }}
@@ -103,6 +83,7 @@ export default async function PerfilPage() {
           <ChevronRight size={17} style={{ color: 'var(--muted)' }} />
         </div>
         <LogoutButton />
+        <DeleteAccountSection email={user.email ?? ''} />
       </div>
     </AppShell>
   )

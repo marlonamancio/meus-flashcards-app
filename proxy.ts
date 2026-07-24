@@ -28,7 +28,9 @@ export async function proxy(request: NextRequest) {
 
   // Redirect unauthenticated users to login (except for auth routes)
   const isAuthRoute = request.nextUrl.pathname.startsWith('/login')
-  const isPublicRoute = request.nextUrl.pathname === '/'
+  // /conta-excluida is reached right after account deletion signs the session out, so it must
+  // stay reachable without a session — same reason it lives outside the (app) route group.
+  const isPublicRoute = request.nextUrl.pathname === '/' || request.nextUrl.pathname === '/conta-excluida'
 
   if (!user && !isAuthRoute && !isPublicRoute) {
     const url = request.nextUrl.clone()
