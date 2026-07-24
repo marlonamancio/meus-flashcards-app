@@ -63,15 +63,21 @@ Criar flashcards manualmente é o principal atrito que impede o uso consistente 
    - Usuária toca na coleção sugerida para mover o card, ou remove o card diretamente (protótipo original: "Toque na coleção sugerida para mover cada card, ou remova o que não precisa")
    - Depende do pipeline de upload+geração via IA já estar implementado (item 3) — não faz sentido implementar isolado antes disso, seria uma segunda integração de IA solta no código
 
+10. **Edição de perfil**
+    - **Nome de exibição**: campo editável no Perfil, salvo em `user_metadata.name` do Supabase Auth. Usado no "Olá, [nome]" da Home e em qualquer outro lugar que hoje usa o fallback genérico
+    - **Avatar do header (Home)**: vira link clicável levando para `/perfil`
+    - **Cor/estilo do avatar de iniciais**: usuária escolhe entre um conjunto pré-definido de cores (mesma paleta já usada nos avatares de coleção — `COLLECTION_PALETTE`), sem upload de imagem na v1. Upload de foto real fica para v2 (exige Supabase Storage, bucket dedicado, mais complexidade — ver "Fora de escopo")
+    - **Alterar senha**: formulário no Perfil (senha atual + nova senha + confirmar nova senha), respeitando a mesma política de senha forte já configurada no Supabase (mínimo 6 caracteres, maiúscula/minúscula/número/símbolo — ver seção "Autenticação" para o valor exato confirmado)
+
 ## Fora de escopo (v1) — decisões conscientes
 
 - **Timezone configurável por usuária** — v1 usa timezone fixo em código (`America/Sao_Paulo`) para toda lógica de "dia" (streak, meta diária, daily_activity), já que é usuária única no Brasil. Um campo de timezone no Perfil, lido dinamicamente em vez de fixo, fica para v2 (relevante se o app escalar para mais usuárias em fusos diferentes). Fixar agora não bloqueia essa evolução depois — troca uma constante por uma leitura de configuração, a lógica de cálculo de "dia" em si permanece a mesma.
+- **Upload de foto real como avatar** — v1 permite só escolher cor/estilo do avatar de iniciais (sem imagem). Upload de foto de verdade fica para v2, quando fizer sentido configurar um bucket dedicado no Supabase Storage para isso.
 - **Repetição espaçada (SM-2/FSRS) — algoritmo de agendamento de revisão.** Ideias já capturadas para quando essa etapa chegar:
   - **Rating de 4 níveis** no modo de estudo, substituindo o binário atual "sabia/não sabia": **Não lembrei / Foi difícil / Fui bem / Fácil demais** (equivalente ao padrão Again/Hard/Good/Easy usado por Anki e FSRS). Isso não é só mudança de UI — é o dado de entrada que o algoritmo de repetição espaçada precisa para decidir o próximo intervalo de revisão com mais precisão do que um sim/não. Implica migrar `flashcard_responses.acertou` (boolean) para um campo de rating com 4 níveis quando essa v2 chegar — **manter boolean na v1**, essa migração de schema é trabalho de v2.
   - **Ordem de apresentação dos cards no modo de estudo**: duas opções a decidir na v2 — embaralhar aleatoriamente os cards da coleção, ou deixar o algoritmo de repetição espaçada decidir a ordem/prioridade com base no progresso registrado (cards com mais erro ou mais próximos do vencimento aparecem primeiro). Provavelmente a segunda opção é a mais valiosa uma vez que a repetição espaçada existir, mas embaralhar pode ser um "modo simples" complementar mesmo sem o algoritmo completo.
 - YouTube ou áudio como fonte de material
 - Exportação para Anki, Quizlet, etc, ou importação de formatos nativos desses apps (ex: .apkg) — a importação via CSV genérico já cobre o caso de uso real (trazer cards já criados), sem precisar suportar formato proprietário de terceiros
-- **Tela de cadastro pública** — conta criada manualmente via Supabase Dashboard na v1 (ver seção "Autenticação"). Cadastro self-service fica para v2.
 - **Coluna "Coleção" no CSV de importação** — permitiria importar cards de várias coleções num único arquivo (uma coluna extra com o nome da coleção de destino por linha). Se a coluna estiver toda vazia, mantém o comportamento atual (pergunta destino único); se parcialmente preenchida, linhas com valor vão para a coleção nomeada (criando se não existir, com normalização de nome — trim + case-insensitive, pra evitar duplicata por erro de digitação) e linhas vazias caem em "sem coleção". Não implementado na v1 porque muda a natureza do `DestinationPicker` (de "um destino por arquivo" para "destino por linha") e complexifica o resumo da importação (quebra por coleção, não só total importado/ignorado). Por enquanto, múltiplas coleções em um envio = múltiplos CSVs, um por coleção — já suportado sem trabalho adicional.
 - **Notificações de estudo (push)** — apareceu no protótipo do Claude Design (toggle na tela de Perfil), mas fica para v2: exige permissão do navegador, service worker dedicado e gatilho de backend para disparo, complexidade real além do resto do MVP. Manter o toggle fora do Perfil na v1, ou deixá-lo desabilitado/"em breve" se já estiver no design
 - **Exportar meus cards (CSV)** — também apareceu no protótipo (Perfil), fica para v2. Seria o espelho simples da importação CSV, mas não é essencial para o problema original (ela quer gerar cards, não exportá-los)
@@ -83,6 +89,10 @@ Criar flashcards manualmente é o principal atrito que impede o uso consistente 
 Essas features podem entrar em versões futuras, mas não são necessárias para resolver o problema original.
 
 ## Design e estilo visual
+
+**Referência do protótipo (Claude Design MCP)**: sempre que precisar consultar ou sincronizar o design original, use o MCP `claude_design` (`https://api.anthropic.com/v1/design/mcp`, autenticação via `/design-login`) para importar este projeto:
+`https://claude.ai/design/p/53a89d98-9714-4cfe-9cfe-0e0ab53c3e29?file=Meus+Flashcards.dc.html`
+Rodar `/design-sync` antes de implementar qualquer tela nova ou revisar uma existente — não implementar por suposição visual sem sincronizar primeiro (ver histórico de bug de estilo divergente registrado neste projeto).
 
 Estilo não é prioridade de esforço agora, mas há uma direção clara a seguir:
 
@@ -185,13 +195,24 @@ Mesmo sendo uso restrito a uma única usuária por enquanto, a autenticação en
 - Sessão persistente no PWA (não pedir login toda hora)
 - RLS já citado acima garante isolamento de dados a nível de banco, preparando o terreno caso o app ganhe mais usuários no futuro
 
-**Cadastro de usuária (decisão v1):** não há tela de cadastro pública na v1. A(s) conta(s) são criadas manualmente pelo desenvolvedor via Supabase Dashboard → Authentication → Users → Add user. Isso é suficiente para uso de usuária única e reduz superfície de exposição (sem endpoint público de criação de conta). Tela de cadastro simples fica para v2 (ver "Fora de escopo").
+**Cadastro de usuária (decisão revisada):** inicialmente decidimos não ter cadastro público (conta única, criada manualmente via Dashboard). Isso mudou — o MVP vai ser aberto para amigos testarem, então cadastro público (email + senha) entra no escopo agora. Detalhes:
+- Tela de cadastro simples: email, senha, confirmar senha — mesma política de senha forte já configurada no Supabase
+- Confirmação de email: usar o fluxo padrão do Supabase Auth (email de confirmação antes do primeiro login) — mais seguro contra cadastro com email inválido/de terceiros, aceitável mesmo sendo um passo a mais para quem testar
+- RLS já isola dados por usuária desde o início — abrir para múltiplas contas não exige mudança de schema ou política, já estava preparado para isso
+- Sem captcha/proteção anti-bot dedicada por enquanto — volume esperado é baixo (grupo de amigos, não público aberto), o rate-limiting nativo do Supabase Auth contra abuso é suficiente por ora
 
-**Política de senha:**
-- Configurar em Supabase Dashboard → Auth → Policies (não é validação implementada no código do app, é configuração da plataforma):
-  - Comprimento mínimo: 10-12 caracteres
-  - Exigir combinação de maiúscula, minúscula, número e símbolo
-  - Bloqueio de senhas vazadas (HaveIBeenPwned) — recurso do plano Pro do Supabase, deixar como melhoria futura caso o projeto migre de plano
+**Excluir conta (v1):** botão "Excluir conta" no Perfil, logo após "Sair da conta" — vermelho, com ícone de atenção, visualmente distinto como ação destrutiva. Ao clicar, modal de confirmação exige que a usuária digite o próprio email para confirmar (não é só um "tem certeza?" com botão sim/não, reduz clique acidental numa ação irreversível).
+
+Implementação — pontos de segurança importantes:
+- Exclusão de usuária do Supabase Auth (`auth.admin.deleteUser`) exige a **secret key**, nunca pode rodar no client — precisa ser uma Server Action/API route no backend
+- Confirmar que todas as tabelas do app (`materials`, `flashcards`, `collections`, `collection_flashcards`, `flashcard_responses`, `user_stats`, `daily_activity`, `badges`) têm `user_id` referenciando `auth.users(id)` com `ON DELETE CASCADE` — se sim, apagar o usuário no Auth já apaga todos os dados dela automaticamente; se as migrations originais não configuraram isso, corrigir antes de expor essa funcionalidade (testar em ambiente de dev com uma conta descartável antes de confiar nisso em produção)
+- Após exclusão bem-sucedida, encerrar a sessão e redirecionar para uma tela de confirmação (não para o login, para não sugerir "faça login de novo" logo após apagar a conta)
+- Ação sem possibilidade de desfazer — deixar isso explícito no texto do modal de confirmação
+
+**Política de senha (configurada e confirmada no Supabase Dashboard → Authentication → Sign In / Providers → Email):**
+- Comprimento mínimo: **6 caracteres** (reduzido de 10-12 originalmente planejado, decisão consciente para não tornar o cadastro cansativo — trade-off aceito para o contexto de MVP entre amigos, não recomendado para produto com dado sensível real)
+- Requisitos de caractere: **minúscula + maiúscula + dígito + símbolo obrigatórios** (opção "recommended" do Supabase)
+- Bloqueio de senhas vazadas (HaveIBeenPwned) — recurso do plano Pro do Supabase, deixar como melhoria futura caso o projeto migre de plano
 - Hash de senha (bcrypt + salt) já é nativo do Supabase Auth, não requer implementação
 - Validação client-side deve espelhar a mesma regra apenas para dar feedback imediato na UI (ex: "faltam X caracteres", "adicione um número") — a validação que efetivamente protege é a do servidor
 - Reset de senha via serviço de e-mail padrão do Supabase (suficiente para o volume de uso atual; SMTP customizado fica para se o projeto crescer)
@@ -261,6 +282,10 @@ Observação: `streak_atual` e `streak_recorde` podem ser calculados a partir de
 - Planejamento e alinhamento em conversa antes de implementar
 - Preferência por entender fundamentos antes de aplicar
 - Performance e segurança tratadas desde o início, não como retrofit — mesmo em escopo simples e uso pessoal
+
+## Cuidado conhecido — API admin vs. API pública em testes
+
+A **API admin** do Supabase (`auth.admin.createUser`, `auth.admin.updateUserById`, etc., usando a secret key) **ignora intencionalmente** políticas de senha e algumas outras validações do Dashboard — ela existe para acesso privilegiado/backend, não para simular o que um usuário real experimenta. Ao testar qualquer comportamento de autenticação (política de senha, validação de email, etc.) contra o banco real, usar sempre o caminho público (`auth.signUp()`, `auth.updateUser()` com a publishable key) — o mesmo que a UI do app realmente chama —, nunca a API admin, ou o teste pode reportar um "bug" que na verdade é só o comportamento esperado e diferente das duas APIs. Isso já gerou uma investigação de falso positivo neste projeto (política de senha "não aplicada" — na verdade estava, só o teste usou o caminho errado).
 
 ## Idioma
 

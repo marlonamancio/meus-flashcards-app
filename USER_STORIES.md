@@ -70,7 +70,8 @@ Como usuária, quero que minha escolha de tema (claro/escuro) seja lembrada entr
 
 ## Acesso e conta
 
-*Nota: não há user story de cadastro público na v1 — a conta é criada manualmente pelo desenvolvedor via Supabase Dashboard. Cadastro self-service fica para v2.*
+**US20a — Cadastro**
+Como visitante, quero criar uma conta com email e senha, para começar a usar o app (decisão revisada: MVP será compartilhado com amigos para teste, não mais uso restrito a uma única usuária).
 
 **US20 — Login**
 Como usuária, quero fazer login com email e senha, para que meus flashcards e meu progresso fiquem privados e protegidos.
@@ -107,6 +108,20 @@ Como usuária, quero que cada card órfão venha com uma sugestão de coleção 
 
 **US29 — Mover ou remover card órfão**
 Como usuária, quero tocar na coleção sugerida para mover o card pra lá, ou remover o card diretamente se não precisar mais dele.
+
+## Edição de perfil
+
+**US30 — Editar nome de exibição**
+Como usuária, quero definir/editar meu nome no Perfil, para ver meu nome real na saudação da Home em vez de um texto genérico.
+
+**US31 — Acessar o Perfil pelo avatar da Home**
+Como usuária, quero tocar no meu avatar no cabeçalho da Home para ir direto à tela de Perfil.
+
+**US32 — Escolher cor do avatar**
+Como usuária, quero escolher a cor do meu avatar de iniciais entre opções pré-definidas, para personalizar minha conta.
+
+**US33 — Alterar senha**
+Como usuária, quero alterar minha senha informando a atual e a nova, para manter minha conta segura sem depender de recuperação por email.
 
 ## Fora de escopo (v1)
 
