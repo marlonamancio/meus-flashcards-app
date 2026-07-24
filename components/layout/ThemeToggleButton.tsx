@@ -18,7 +18,6 @@ export function ThemeToggleButton() {
         border: '1px solid var(--border)',
         color: 'var(--text)',
       }}
-      suppressHydrationWarning
     >
       {theme === 'dark' ? <Sun size={20} strokeWidth={1.9} /> : <Moon size={20} strokeWidth={1.9} />}
     </button>

@@ -57,17 +57,37 @@ export function initials(nome: string): string {
   return (words[0][0] + words[1][0]).toUpperCase()
 }
 
-function toISODate(d: Date): string {
+const TIMEZONE = 'America/Sao_Paulo'
+
+// "Today" for streak/activity purposes is always the user's local (Brasília) calendar date,
+// not the server's UTC date. Brasília has been a fixed UTC-3 offset since Brazil stopped
+// observing DST in 2019, but going through Intl's timezone-aware formatter (rather than a
+// hardcoded "-3 hours") stays correct if that ever changes, and avoids the bug class where
+// `.toISOString()` (always UTC) misattributes late-evening Brasília activity to the next
+// calendar day.
+export function brasiliaDateString(date: Date): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date)
+}
+
+// Pure calendar-date arithmetic on a 'YYYY-MM-DD' string: parsed as UTC midnight purely as a
+// calculation anchor (not as a real instant), so this is safe and unambiguous regardless of
+// the server's runtime timezone.
+export function addDaysToDateString(isoDate: string, days: number): string {
+  const d = new Date(`${isoDate}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + days)
   return d.toISOString().slice(0, 10)
 }
 
-function startOfWeekMonday(d: Date): Date {
-  const day = d.getDay() // 0 = Sunday
+function mondayOfWeek(isoDate: string): string {
+  const d = new Date(`${isoDate}T00:00:00Z`)
+  const day = d.getUTCDay() // 0 = Sunday — safe here since isoDate is already a plain calendar date
   const diff = day === 0 ? -6 : 1 - day
-  const monday = new Date(d)
-  monday.setHours(0, 0, 0, 0)
-  monday.setDate(d.getDate() + diff)
-  return monday
+  return addDaysToDateString(isoDate, diff)
 }
 
 export async function getUserStats(supabase: SupabaseClient, userId: string): Promise<UserStats> {
@@ -88,34 +108,29 @@ export async function getUserStats(supabase: SupabaseClient, userId: string): Pr
 }
 
 export async function getWeekActivity(supabase: SupabaseClient, userId: string): Promise<WeekDay[]> {
-  const today = new Date()
-  const monday = startOfWeekMonday(today)
-  const days = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(monday)
-    d.setDate(monday.getDate() + i)
-    return d
-  })
+  const todayISO = brasiliaDateString(new Date())
+  const mondayISO = mondayOfWeek(todayISO)
+  const daysISO = Array.from({ length: 7 }, (_, i) => addDaysToDateString(mondayISO, i))
 
   const { data, error } = await supabase
     .from('daily_activity')
     .select('data, meta_atingida')
     .eq('user_id', userId)
-    .gte('data', toISODate(days[0]))
-    .lte('data', toISODate(days[6]))
+    .gte('data', daysISO[0])
+    .lte('data', daysISO[6])
 
   assertNoError(error, 'daily_activity')
 
   const completedDates = new Set((data ?? []).filter((r) => r.meta_atingida).map((r) => r.data))
-  const todayISO = toISODate(today)
 
-  return days.map((d, i) => ({
+  return daysISO.map((iso, i) => ({
     label: WEEK_LABELS[i],
-    isToday: toISODate(d) === todayISO,
-    completed: completedDates.has(toISODate(d)),
+    isToday: iso === todayISO,
+    completed: completedDates.has(iso),
   }))
 }
 
-const BADGE_DEFS: { tipo: BadgeInfo['tipo']; label: string; target: number }[] = [
+export const BADGE_DEFS: { tipo: BadgeInfo['tipo']; label: string; target: number }[] = [
   { tipo: 'cards_revisados', label: 'Cards revisados', target: 50 },
   { tipo: 'dias_ofensiva', label: 'Dias de ofensiva', target: 7 },
   { tipo: 'acertos', label: 'Acertos', target: 100 },

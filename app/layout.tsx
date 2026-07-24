@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
+import Script from 'next/script'
 import './globals.css'
 
 const inter = Inter({
@@ -36,7 +37,9 @@ export default function RootLayout({
       <head>
         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
         {/* Blocking script: initialize theme BEFORE paint to avoid flash */}
-        <script
+        <Script
+          id="theme-init"
+          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
@@ -54,7 +57,9 @@ export default function RootLayout({
         {/* Register service worker (production only — in dev it cache-first-intercepts
             Turbopack's stable chunk URLs and serves stale JS/CSS across recompiles) */}
         {process.env.NODE_ENV === 'production' && (
-          <script
+          <Script
+            id="sw-register"
+            strategy="afterInteractive"
             dangerouslySetInnerHTML={{
               __html: `
                 if ('serviceWorker' in navigator) {

@@ -43,6 +43,7 @@ Criar flashcards manualmente é o principal atrito que impede o uso consistente 
 6. **Modo de estudo**
    - Virar o card (pergunta → resposta)
    - Marcar resposta como "sabia" / "não sabia"
+   - **Fechar no meio da sessão (botão X)**: exibe resumo parcial com a contagem de sabia/não sabia respondidos até aquele ponto, não pula direto para a coleção sem feedback. Cada resposta já é salva individualmente ao ser respondida (antes deste resumo aparecer), então não há risco de perda de dado — o resumo parcial é só exibição, reaproveitando a mesma tela de resumo usada ao completar a sessão inteira.
 
 7. **Acompanhamento de desempenho**
    - Registro histórico de cada resposta (acertou/errou, com data)
@@ -64,6 +65,7 @@ Criar flashcards manualmente é o principal atrito que impede o uso consistente 
 
 ## Fora de escopo (v1) — decisões conscientes
 
+- **Timezone configurável por usuária** — v1 usa timezone fixo em código (`America/Sao_Paulo`) para toda lógica de "dia" (streak, meta diária, daily_activity), já que é usuária única no Brasil. Um campo de timezone no Perfil, lido dinamicamente em vez de fixo, fica para v2 (relevante se o app escalar para mais usuárias em fusos diferentes). Fixar agora não bloqueia essa evolução depois — troca uma constante por uma leitura de configuração, a lógica de cálculo de "dia" em si permanece a mesma.
 - **Repetição espaçada (SM-2/FSRS) — algoritmo de agendamento de revisão.** Ideias já capturadas para quando essa etapa chegar:
   - **Rating de 4 níveis** no modo de estudo, substituindo o binário atual "sabia/não sabia": **Não lembrei / Foi difícil / Fui bem / Fácil demais** (equivalente ao padrão Again/Hard/Good/Easy usado por Anki e FSRS). Isso não é só mudança de UI — é o dado de entrada que o algoritmo de repetição espaçada precisa para decidir o próximo intervalo de revisão com mais precisão do que um sim/não. Implica migrar `flashcard_responses.acertou` (boolean) para um campo de rating com 4 níveis quando essa v2 chegar — **manter boolean na v1**, essa migração de schema é trabalho de v2.
   - **Ordem de apresentação dos cards no modo de estudo**: duas opções a decidir na v2 — embaralhar aleatoriamente os cards da coleção, ou deixar o algoritmo de repetição espaçada decidir a ordem/prioridade com base no progresso registrado (cards com mais erro ou mais próximos do vencimento aparecem primeiro). Provavelmente a segunda opção é a mais valiosa uma vez que a repetição espaçada existir, mas embaralhar pode ser um "modo simples" complementar mesmo sem o algoritmo completo.
@@ -98,7 +100,7 @@ Protótipo final iterado no Claude Design. Cada tela aprovada deve virar referê
 Estrutura de cima para baixo (ordem de prioridade visual):
 
 1. **Cabeçalho**: saudação personalizada ("Olá, [nome]") + data + switch de dark/light mode (ícone de lua/sol) + avatar/inicial da usuária no canto superior direito
-2. **Card de ofensiva (streak)** — componente principal da home, reforça o hábito diário:
+2. **Card de ofensiva (streak)** — componente principal da home, reforça o hábito diário. **Regra de contagem (decisão final)**: o streak só incrementa no dia se a **meta diária de cards for atingida naquele dia** — responder cards sem bater a meta não conta para a ofensiva. Decisão consciente de ser mais exigente (força disciplina real), com a usuária tendo controle total sobre o quão fácil/difícil isso é, já que a meta diária é ajustável por ela mesma na tela de Perfil (stepper "Meta diária"). Se pular um dia (sem bater a meta), o streak reseta para 0 no próximo dia com meta batida, seguindo a mesma lógica de reset já implementada:
    - Número de dias consecutivos + recorde pessoal ("Seu recorde é X dias")
    - Calendário semanal (S T Q Q S S D) com indicador visual de dias concluídos (check preenchido), dia atual em destaque (contorno), dias futuros neutros
 3. **Meta de hoje**: barra de progresso com contagem "X / Y cards", meta diária configurável

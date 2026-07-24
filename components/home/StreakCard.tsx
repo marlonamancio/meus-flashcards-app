@@ -44,12 +44,12 @@ export function StreakCard({ stats, week }: { stats: UserStats; week: WeekDay[] 
               {stats.streakAtual}
             </span>
             <span className="text-[13.5px] font-semibold" style={{ color: 'var(--muted)' }}>
-              dias de ofensiva
+              {stats.streakAtual === 1 ? 'dia de ofensiva' : 'dias de ofensiva'}
             </span>
           </div>
           <div className="text-xs mt-px" style={{ color: 'var(--muted)' }}>
             {stats.streakRecorde > 0
-              ? `Seu recorde é ${stats.streakRecorde} dias. Continue!`
+              ? `Seu recorde é ${stats.streakRecorde} ${stats.streakRecorde === 1 ? 'dia' : 'dias'}. Continue!`
               : 'Comece hoje a sua ofensiva!'}
           </div>
         </div>
