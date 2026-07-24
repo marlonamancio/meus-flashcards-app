@@ -56,6 +56,12 @@ Criar flashcards manualmente é o principal atrito que impede o uso consistente 
    - Validação básica: linhas malformadas (faltando frente ou verso) são ignoradas na importação, não travam o processo inteiro
    - Ao final, mostrar resumo: quantos cards foram importados com sucesso e quantos foram ignorados (com o motivo, se possível)
 
+9. **Tela "Não organizados"** (v1, sequenciada após o pipeline de IA estar pronto)
+   - Cards sem coleção (órfãos por nunca terem sido categorizados, ou por terem sobrado após uma coleção ser apagada) ficam listados nessa tela dedicada — hoje é só um item visual na lista de Coleções, sem rota/tela real por trás
+   - Para cada card: **sugestão automática de coleção via IA**, com base no conteúdo do card comparado às coleções existentes da usuária (reaproveita a mesma infraestrutura de chamada à API da Anthropic do pipeline de geração — não é uma integração de IA nova e isolada)
+   - Usuária toca na coleção sugerida para mover o card, ou remove o card diretamente (protótipo original: "Toque na coleção sugerida para mover cada card, ou remova o que não precisa")
+   - Depende do pipeline de upload+geração via IA já estar implementado (item 3) — não faz sentido implementar isolado antes disso, seria uma segunda integração de IA solta no código
+
 ## Fora de escopo (v1) — decisões conscientes
 
 - **Repetição espaçada (SM-2/FSRS) — algoritmo de agendamento de revisão.** Ideias já capturadas para quando essa etapa chegar:
@@ -64,6 +70,7 @@ Criar flashcards manualmente é o principal atrito que impede o uso consistente 
 - YouTube ou áudio como fonte de material
 - Exportação para Anki, Quizlet, etc, ou importação de formatos nativos desses apps (ex: .apkg) — a importação via CSV genérico já cobre o caso de uso real (trazer cards já criados), sem precisar suportar formato proprietário de terceiros
 - **Tela de cadastro pública** — conta criada manualmente via Supabase Dashboard na v1 (ver seção "Autenticação"). Cadastro self-service fica para v2.
+- **Coluna "Coleção" no CSV de importação** — permitiria importar cards de várias coleções num único arquivo (uma coluna extra com o nome da coleção de destino por linha). Se a coluna estiver toda vazia, mantém o comportamento atual (pergunta destino único); se parcialmente preenchida, linhas com valor vão para a coleção nomeada (criando se não existir, com normalização de nome — trim + case-insensitive, pra evitar duplicata por erro de digitação) e linhas vazias caem em "sem coleção". Não implementado na v1 porque muda a natureza do `DestinationPicker` (de "um destino por arquivo" para "destino por linha") e complexifica o resumo da importação (quebra por coleção, não só total importado/ignorado). Por enquanto, múltiplas coleções em um envio = múltiplos CSVs, um por coleção — já suportado sem trabalho adicional.
 - **Notificações de estudo (push)** — apareceu no protótipo do Claude Design (toggle na tela de Perfil), mas fica para v2: exige permissão do navegador, service worker dedicado e gatilho de backend para disparo, complexidade real além do resto do MVP. Manter o toggle fora do Perfil na v1, ou deixá-lo desabilitado/"em breve" se já estiver no design
 - **Exportar meus cards (CSV)** — também apareceu no protótipo (Perfil), fica para v2. Seria o espelho simples da importação CSV, mas não é essencial para o problema original (ela quer gerar cards, não exportá-los)
 - Imagens geradas por IA nos cards
@@ -252,3 +259,7 @@ Observação: `streak_atual` e `streak_recorde` podem ser calculados a partir de
 - Planejamento e alinhamento em conversa antes de implementar
 - Preferência por entender fundamentos antes de aplicar
 - Performance e segurança tratadas desde o início, não como retrofit — mesmo em escopo simples e uso pessoal
+
+## Idioma
+
+Responda sempre em português do Brasil, com acentuação e cedilha corretas em todo texto (comentários, mensagens de commit, explicações). Não omita acentos mesmo em respostas longas ou após compactação de contexto.

@@ -97,6 +97,17 @@ Como usuária, ao importar um CSV, quero escolher se os cards vão para uma cole
 **US26 — Ver resumo da importação**
 Como usuária, quero ver quantos cards foram importados com sucesso e quantos foram ignorados (e por quê), para saber se preciso corrigir e reimportar algo.
 
+## Cards sem coleção ("Não organizados")
+
+**US27 — Ver cards sem coleção**
+Como usuária, quero acessar uma tela dedicada listando todos os cards que não pertencem a nenhuma coleção, para poder organizá-los.
+
+**US28 — Sugestão automática de coleção**
+Como usuária, quero que cada card órfão venha com uma sugestão de coleção baseada no seu conteúdo, para organizar rapidamente sem precisar decidir manualmente toda vez.
+
+**US29 — Mover ou remover card órfão**
+Como usuária, quero tocar na coleção sugerida para mover o card pra lá, ou remover o card diretamente se não precisar mais dele.
+
 ## Fora de escopo (v1)
 
 - Repetição espaçada / algoritmo de agendamento de revisão — inclui, para quando chegar: rating de 4 níveis no estudo (Não lembrei/Foi difícil/Fui bem/Fácil demais, substituindo sabia/não sabia) e ordem de apresentação por embaralhamento ou por prioridade decidida pelo algoritmo (detalhes técnicos no CLAUDE.md)
