@@ -1,6 +1,31 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { COLLECTION_PALETTE, assertNoError, initials } from '@/lib/home-data'
 
+export type CollectionOption = {
+  id: string
+  nome: string
+}
+
+// Cheap {id, nome} listing for destination pickers (upload/CSV import) — avoids the
+// accuracy/card-count aggregation getCollections() does, which isn't needed here.
+export async function getCollectionOptions(supabase: SupabaseClient, userId: string): Promise<CollectionOption[]> {
+  const { data, error } = await supabase
+    .from('collections')
+    .select('id, nome')
+    .eq('user_id', userId)
+    .order('nome', { ascending: true })
+
+  assertNoError(error, 'collections')
+  return data ?? []
+}
+
+export type CollectionCard = {
+  id: string
+  frente: string
+  verso: string
+  accuracyPct: number | null
+}
+
 export type CollectionDetail = {
   id: string
   nome: string
@@ -11,6 +36,7 @@ export type CollectionDetail = {
   accuracyPct: number | null
   errorPct: number | null
   reviewCount: number
+  cards: CollectionCard[]
 }
 
 // Cards belong to a collection only via collection_flashcards; a card with no row there
@@ -83,19 +109,46 @@ export async function getCollectionDetail(
 
   const flashcardIds = (links ?? []).map((l) => l.flashcard_id as string)
 
+  let cards: CollectionCard[] = []
   let correct = 0
   let total = 0
-  if (flashcardIds.length > 0) {
-    const { data: responses, error: responsesError } = await supabase
-      .from('flashcard_responses')
-      .select('acertou')
-      .eq('user_id', userId)
-      .in('flashcard_id', flashcardIds)
 
+  if (flashcardIds.length > 0) {
+    // No join with `materials` here — origem/material_id aren't needed to render the list,
+    // and a flashcard imported via CSV always has material_id NULL, so an inner join on that
+    // table would silently drop every CSV-origin card from the result.
+    const [{ data: flashcards, error: flashcardsError }, { data: responses, error: responsesError }] = await Promise.all([
+      supabase
+        .from('flashcards')
+        .select('id, frente, verso')
+        .in('id', flashcardIds)
+        .eq('user_id', userId)
+        .order('criado_em', { ascending: true }),
+      supabase.from('flashcard_responses').select('flashcard_id, acertou').eq('user_id', userId).in('flashcard_id', flashcardIds),
+    ])
+
+    assertNoError(flashcardsError, 'flashcards')
     assertNoError(responsesError, 'flashcard_responses')
 
-    total = responses?.length ?? 0
-    correct = (responses ?? []).filter((r) => r.acertou).length
+    const accuracyByFlashcard = new Map<string, { correct: number; total: number }>()
+    for (const r of responses ?? []) {
+      const entry = accuracyByFlashcard.get(r.flashcard_id) ?? { correct: 0, total: 0 }
+      entry.total += 1
+      if (r.acertou) entry.correct += 1
+      accuracyByFlashcard.set(r.flashcard_id, entry)
+      total += 1
+      if (r.acertou) correct += 1
+    }
+
+    cards = (flashcards ?? []).map((f) => {
+      const entry = accuracyByFlashcard.get(f.id)
+      return {
+        id: f.id,
+        frente: f.frente,
+        verso: f.verso,
+        accuracyPct: entry && entry.total > 0 ? Math.round((entry.correct / entry.total) * 100) : null,
+      }
+    })
   }
 
   return {
@@ -108,5 +161,6 @@ export async function getCollectionDetail(
     accuracyPct: total > 0 ? Math.round((correct / total) * 100) : null,
     errorPct: total > 0 ? Math.round(((total - correct) / total) * 100) : null,
     reviewCount: total,
+    cards,
   }
 }

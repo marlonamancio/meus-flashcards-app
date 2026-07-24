@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { Alert } from '@/components/ui/Alert'
 
 export function LogoutButton() {
   const router = useRouter()
@@ -35,9 +36,7 @@ export function LogoutButton() {
       >
         {loading ? 'Saindo...' : 'Sair da conta'}
       </button>
-      {error && (
-        <p className="text-xs" style={{ color: 'var(--bad)' }}>{error}</p>
-      )}
+      {error && <Alert>{error}</Alert>}
     </div>
   )
 }

@@ -7,6 +7,7 @@ import { ChevronRight, Inbox, Plus, Search } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { CollectionSummary } from '@/lib/home-data'
 import { HeaderTitle } from '@/components/layout/HeaderTitle'
+import { Alert } from '@/components/ui/Alert'
 
 export function ColecoesView({
   collections,
@@ -98,11 +99,7 @@ export function ColecoesView({
             className="w-full text-sm rounded-[11px]"
             style={{ padding: 12, background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)' }}
           />
-          {error && (
-            <p className="text-xs mt-2" style={{ color: 'var(--bad)' }}>
-              {error}
-            </p>
-          )}
+          {error && <Alert style={{ marginTop: 8 }}>{error}</Alert>}
           <div className="flex gap-[9px] mt-[10px]">
             <button
               type="button"

@@ -7,6 +7,7 @@ import { ArrowLeft, MoreVertical } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { CollectionDetail } from '@/lib/collections-data'
 import { Modal } from '@/components/ui/Modal'
+import { Alert } from '@/components/ui/Alert'
 
 export function CollectionHeader({ collection }: { collection: CollectionDetail }) {
   const router = useRouter()
@@ -127,11 +128,7 @@ export function CollectionHeader({ collection }: { collection: CollectionDetail 
             className="w-full text-sm rounded-xl"
             style={{ padding: 12, background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)' }}
           />
-          {error && (
-            <p className="text-xs mt-2" style={{ color: 'var(--bad)' }}>
-              {error}
-            </p>
-          )}
+          {error && <Alert style={{ marginTop: 8 }}>{error}</Alert>}
           <div className="flex gap-[9px] mt-4">
             <button
               type="button"
@@ -158,11 +155,7 @@ export function CollectionHeader({ collection }: { collection: CollectionDetail 
         <p className="text-[13px]" style={{ color: 'var(--muted)' }}>
           Os flashcards desta coleção não serão excluídos — eles voltam para &ldquo;Não organizados&rdquo; se não estiverem em outra coleção.
         </p>
-        {error && (
-          <p className="text-xs mt-2" style={{ color: 'var(--bad)' }}>
-            {error}
-          </p>
-        )}
+        {error && <Alert style={{ marginTop: 8 }}>{error}</Alert>}
         <div className="flex gap-[9px] mt-4">
           <button
             onClick={() => setDeleteOpen(false)}

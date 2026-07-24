@@ -59,12 +59,44 @@ export default async function CollectionPage({ params }: { params: Promise<{ id:
         <h2 className="text-[14.5px] font-bold">Cards</h2>
         <span className="text-xs" style={{ color: 'var(--muted)' }}>{collection.cardCount}</span>
       </div>
-      <div
-        className="rounded-2xl text-center"
-        style={{ padding: '28px 16px', background: 'var(--surface)', border: '1px dashed var(--border)', color: 'var(--muted)', fontSize: 13.5 }}
-      >
-        Nenhum card nesta coleção ainda.
-      </div>
+      {collection.cards.length === 0 ? (
+        <div
+          className="rounded-2xl text-center"
+          style={{ padding: '28px 16px', background: 'var(--surface)', border: '1px dashed var(--border)', color: 'var(--muted)', fontSize: 13.5 }}
+        >
+          Nenhum card nesta coleção ainda.
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {collection.cards.map((card) => (
+            <div
+              key={card.id}
+              className="flex items-center gap-3 rounded-[14px]"
+              style={{ padding: '13px 14px', background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}
+            >
+              <div className="flex-1 min-w-0">
+                <div className="text-[13.5px] font-semibold truncate" style={{ lineHeight: 1.35 }}>
+                  {card.frente}
+                </div>
+                <div className="text-[11.5px] mt-[3px] truncate" style={{ color: 'var(--muted)' }}>
+                  {card.verso}
+                </div>
+              </div>
+              <div className="flex-none text-right">
+                <div
+                  className="text-[13px] font-bold"
+                  style={{ color: card.accuracyPct === null ? 'var(--muted)' : card.accuracyPct >= 50 ? 'var(--good)' : 'var(--bad)' }}
+                >
+                  {card.accuracyPct !== null ? `${card.accuracyPct}%` : '—'}
+                </div>
+                <div className="text-[10px]" style={{ color: 'var(--muted)' }}>
+                  acerto
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </AppShell>
   )
 }

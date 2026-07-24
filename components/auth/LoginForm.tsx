@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
+import { Alert } from '@/components/ui/Alert'
 import { ArrowRight, Eye, EyeOff, Loader2 } from 'lucide-react'
 
 export function LoginForm() {
@@ -153,18 +154,7 @@ export function LoginForm() {
       </label>
 
       {/* Error message */}
-      {error && (
-        <p
-          className="text-sm rounded-[13px]"
-          style={{
-            color: 'var(--bad)',
-            background: 'var(--bad-soft)',
-            padding: '12px 15px',
-          }}
-        >
-          {error}
-        </p>
-      )}
+      {error && <Alert>{error}</Alert>}
 
       {/* Submit */}
       <button
