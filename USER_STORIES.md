@@ -52,17 +52,14 @@ Como usuária, quero visualizar os flashcards de uma coleção um de cada vez, v
 **US14 — Marcar resposta**
 Como usuária, ao responder um flashcard, quero marcar se eu sabia ou não sabia a resposta, para que o app registre meu desempenho.
 
-**US14a — Retomar sessão de onde parou**
-Como usuária, quero que ao reabrir uma coleção que eu não terminei de estudar, o app continue do card seguinte ao último que respondi, para não perder cards que ainda não vi só porque interrompi a sessão em algum momento.
+**US14a — Ordem inteligente dos cards**
+Como usuária, quero que os cards que eu mais erro apareçam com mais frequência primeiro (com alguma aleatoriedade para não decorar a sequência), para focar meu esforço onde mais preciso, sem deixar de ver os demais.
 
-**US14a2 — Escolher entre continuar ou recomeçar**
+**US14b — Retomar sessão sem repetir os já respondidos**
+Como usuária, quero que ao retomar uma sessão incompleta, os cards que já respondi não apareçam de novo, e os que faltam sejam reordenados (mesma lógica de prioridade + aleatoriedade), para continuar de forma eficiente sem repetir trabalho.
+
+**US14c — Escolher entre continuar ou recomeçar**
 Como usuária, ao clicar "Estudar esta coleção" com uma sessão em andamento, quero que o app me pergunte se quero continuar de onde parei ou começar do zero, para eu decidir conforme minha vontade naquele momento, em vez do app decidir por mim.
-
-**US14b — Voltar para rever um card já respondido**
-Como usuária, quero poder voltar e rever um card que já respondi nesta sessão (pergunta, resposta e o que marquei), sem poder alterar o registro, para conferir algo que passei rápido demais.
-
-**US14c — Pular um card sem responder**
-Como usuária, quero poder pular um card sem responder agora, sabendo que ele vai voltar a aparecer antes do fim da sessão, para não travar numa pergunta difícil no meio do estudo.
 
 ## Acompanhamento de desempenho
 

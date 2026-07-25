@@ -1,21 +1,27 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Check, Flame, X } from 'lucide-react'
 import type { CollectionDetail } from '@/lib/collections-data'
 import { recordStudyResponseAction } from '@/app/(app)/collection/[id]/estudar/actions'
+import { orderByPriority } from '@/lib/study-order'
 import { Alert } from '@/components/ui/Alert'
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-export function StudySession({ collection, initialIndex = 0 }: { collection: CollectionDetail; initialIndex?: number }) {
+export function StudySession({ collection, initialQueue }: { collection: CollectionDetail; initialQueue: string[] }) {
   const cards = collection.cards
-  const total = cards.length
+  const cardsById = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards])
 
-  const [currentIndex, setCurrentIndex] = useState(initialIndex)
+  // No manual navigation: cards not yet answered in this pass are shown one at a time, in the
+  // order computed server-side (lowest historical accuracy first, with a random jitter mixed in —
+  // see lib/study-order.ts). `queue` only ever shrinks as cards are answered; a card is removed
+  // once and never comes back until a whole new pass starts.
+  const [queue, setQueue] = useState<string[]>(initialQueue)
+  const [sessionTotal, setSessionTotal] = useState(initialQueue.length)
   const [flipped, setFlipped] = useState(false)
   const [feedback, setFeedback] = useState<'yes' | 'no' | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -25,7 +31,8 @@ export function StudySession({ collection, initialIndex = 0 }: { collection: Col
   const [done, setDone] = useState(false)
 
   function handleRestart() {
-    setCurrentIndex(0)
+    setQueue(orderByPriority(cards).map((c) => c.id))
+    setSessionTotal(cards.length)
     setFlipped(false)
     setFeedback(null)
     setSubmitting(false)
@@ -42,10 +49,12 @@ export function StudySession({ collection, initialIndex = 0 }: { collection: Col
     setActionError(null)
     setFeedback(acertou ? 'yes' : 'no')
 
-    const card = cards[currentIndex]
-    const isLastCard = currentIndex + 1 >= total
+    const cardId = queue[0]
+    const remainingQueue = queue.slice(1)
+    const isLastCard = remainingQueue.length === 0
+
     const [result] = await Promise.all([
-      recordStudyResponseAction(card.id, collection.id, acertou, isLastCard),
+      recordStudyResponseAction(cardId, collection.id, acertou, isLastCard),
       wait(550),
     ])
 
@@ -62,12 +71,9 @@ export function StudySession({ collection, initialIndex = 0 }: { collection: Col
     setFeedback(null)
     setFlipped(false)
     setSubmitting(false)
+    setQueue(remainingQueue)
 
-    if (currentIndex + 1 >= total) {
-      setDone(true)
-    } else {
-      setCurrentIndex((i) => i + 1)
-    }
+    if (isLastCard) setDone(true)
   }
 
   if (done) {
@@ -139,8 +145,10 @@ export function StudySession({ collection, initialIndex = 0 }: { collection: Col
     )
   }
 
-  const card = cards[currentIndex]
-  const progressPct = Math.round((currentIndex / total) * 100)
+  const card = cardsById.get(queue[0])!
+  const answeredCount = knownCount + unknownCount
+  const progressPct = Math.round((answeredCount / sessionTotal) * 100)
+  const positionLabel = Math.min(answeredCount + 1, sessionTotal)
 
   return (
     <div className="max-w-md mx-auto flex flex-col" style={{ height: '100dvh' }}>
@@ -172,7 +180,7 @@ export function StudySession({ collection, initialIndex = 0 }: { collection: Col
           </div>
         </div>
         <span className="text-xs font-bold flex-none" style={{ color: 'var(--muted)' }}>
-          {currentIndex + 1} / {total}
+          {positionLabel} / {sessionTotal}
         </span>
       </div>
 
