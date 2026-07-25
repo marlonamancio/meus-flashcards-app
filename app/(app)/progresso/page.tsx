@@ -28,7 +28,7 @@ export default async function ProgressoPage() {
   const maxDay = Math.max(1, ...week.map((d) => d.cardsRevisados))
 
   const stats = [
-    { value: String(overall.streakAtual), label: 'dias de ofensiva' },
+    { value: String(overall.streakAtual), label: overall.streakAtual === 1 ? 'dia de ofensiva' : 'dias de ofensiva' },
     { value: String(overall.totalReviews), label: 'revisões' },
     { value: overall.avgAccuracyPct !== null ? `${overall.avgAccuracyPct}%` : '—', label: 'acerto médio', color: 'var(--good)' },
   ]
