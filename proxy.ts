@@ -27,7 +27,8 @@ export async function proxy(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
 
   // Redirect unauthenticated users to login (except for auth routes)
-  const isAuthRoute = request.nextUrl.pathname.startsWith('/login')
+  const isAuthRoute =
+    request.nextUrl.pathname.startsWith('/login') || request.nextUrl.pathname.startsWith('/cadastro')
   // /conta-excluida is reached right after account deletion signs the session out, so it must
   // stay reachable without a session — same reason it lives outside the (app) route group.
   const isPublicRoute = request.nextUrl.pathname === '/' || request.nextUrl.pathname === '/conta-excluida'
