@@ -52,6 +52,9 @@ Como usuária, quero visualizar os flashcards de uma coleção um de cada vez, v
 **US14 — Marcar resposta**
 Como usuária, ao responder um flashcard, quero marcar se eu sabia ou não sabia a resposta, para que o app registre meu desempenho.
 
+**US14a — Retomar sessão de onde parou**
+Como usuária, quero que ao reabrir uma coleção que eu não terminei de estudar, o app continue do card seguinte ao último que respondi, para não perder cards que ainda não vi só porque interrompi a sessão em algum momento.
+
 ## Acompanhamento de desempenho
 
 **US15 — Ver taxa de acerto por coleção**
