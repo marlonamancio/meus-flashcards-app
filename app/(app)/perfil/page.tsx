@@ -1,4 +1,3 @@
-import { ChevronRight, Info } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { requireUser } from '@/lib/supabase/require-user'
 import { getDisplayFirstName, getDisplayName, getUserAvatarPalette } from '@/lib/user-display'
@@ -10,6 +9,7 @@ import { ThemeSwitchRow } from '@/components/perfil/ThemeSwitchRow'
 import { LogoutButton } from '@/components/perfil/LogoutButton'
 import { DailyGoalStepper } from '@/components/perfil/DailyGoalStepper'
 import { InstallAppRow } from '@/components/perfil/InstallAppRow'
+import { AboutAppSection } from '@/components/perfil/AboutAppSection'
 import { DeleteAccountSection } from '@/components/perfil/DeleteAccountSection'
 import { ProfileIdentity } from '@/components/perfil/ProfileIdentity'
 import { ChangePasswordForm } from '@/components/perfil/ChangePasswordForm'
@@ -74,14 +74,7 @@ export default async function PerfilPage() {
       </div>
       <div className="flex flex-col gap-2">
         <InstallAppRow />
-        <div
-          className="flex items-center gap-3 rounded-2xl"
-          style={{ padding: 15, background: 'var(--surface)', border: '1px solid var(--border)' }}
-        >
-          <Info size={19} strokeWidth={1.9} style={{ color: 'var(--muted)' }} />
-          <span className="flex-1 text-sm font-semibold">Sobre o Meus Flashcards</span>
-          <ChevronRight size={17} style={{ color: 'var(--muted)' }} />
-        </div>
+        <AboutAppSection />
         <LogoutButton />
         <DeleteAccountSection email={user.email ?? ''} />
       </div>
