@@ -1,11 +1,11 @@
 import { notFound } from 'next/navigation'
-import Link from 'next/link'
-import { Play } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { requireUser } from '@/lib/supabase/require-user'
 import { getCollectionDetail } from '@/lib/collections-data'
+import { hasStudyProgress } from '@/lib/study-progress'
 import { AppShell } from '@/components/layout/AppShell'
 import { CollectionHeader } from '@/components/collection/CollectionHeader'
+import { StudyEntryButton } from '@/components/collection/StudyEntryButton'
 
 export default async function CollectionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -14,6 +14,8 @@ export default async function CollectionPage({ params }: { params: Promise<{ id:
 
   const collection = await getCollectionDetail(supabase, user.id, id)
   if (!collection) notFound()
+
+  const hasProgress = collection.cardCount > 0 && (await hasStudyProgress(supabase, user.id, id))
 
   const stats = [
     { value: collection.accuracyPct !== null ? `${collection.accuracyPct}%` : '—', label: 'taxa de acerto', color: 'var(--good)' },
@@ -40,16 +42,7 @@ export default async function CollectionPage({ params }: { params: Promise<{ id:
         </div>
       </div>
 
-      {collection.cardCount > 0 && (
-        <Link
-          href={`/collection/${collection.id}/estudar`}
-          className="flex items-center justify-center gap-2 w-full rounded-2xl text-[15px] font-semibold"
-          style={{ marginTop: 16, padding: 15, color: 'var(--on-accent)', background: 'var(--accent)', boxShadow: '0 8px 20px var(--accent-soft)' }}
-        >
-          <Play size={18} fill="var(--on-accent)" strokeWidth={0} />
-          Estudar esta coleção
-        </Link>
-      )}
+      {collection.cardCount > 0 && <StudyEntryButton collectionId={collection.id} hasProgress={hasProgress} />}
 
       <div className="flex gap-[9px]" style={{ marginTop: 18 }}>
         {stats.map((stat) => (

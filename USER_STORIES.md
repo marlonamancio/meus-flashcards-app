@@ -55,6 +55,15 @@ Como usuária, ao responder um flashcard, quero marcar se eu sabia ou não sabia
 **US14a — Retomar sessão de onde parou**
 Como usuária, quero que ao reabrir uma coleção que eu não terminei de estudar, o app continue do card seguinte ao último que respondi, para não perder cards que ainda não vi só porque interrompi a sessão em algum momento.
 
+**US14a2 — Escolher entre continuar ou recomeçar**
+Como usuária, ao clicar "Estudar esta coleção" com uma sessão em andamento, quero que o app me pergunte se quero continuar de onde parei ou começar do zero, para eu decidir conforme minha vontade naquele momento, em vez do app decidir por mim.
+
+**US14b — Voltar para rever um card já respondido**
+Como usuária, quero poder voltar e rever um card que já respondi nesta sessão (pergunta, resposta e o que marquei), sem poder alterar o registro, para conferir algo que passei rápido demais.
+
+**US14c — Pular um card sem responder**
+Como usuária, quero poder pular um card sem responder agora, sabendo que ele vai voltar a aparecer antes do fim da sessão, para não travar numa pergunta difícil no meio do estudo.
+
 ## Acompanhamento de desempenho
 
 **US15 — Ver taxa de acerto por coleção**

@@ -7,7 +7,30 @@ import { BADGE_DEFS, addDaysToDateString, brasiliaDateString } from '@/lib/home-
 
 export type RecordStudyResponseResult = { ok: true } | { ok: false; error: string }
 
-export async function recordStudyResponseAction(flashcardId: string, acertou: boolean): Promise<RecordStudyResponseResult> {
+export type ResetStudyProgressResult = { ok: true } | { ok: false; error: string }
+
+// "Começar do zero" from the resume-or-restart dialog: discards the in-progress pass for this
+// collection specifically (study_progress rows), without touching flashcard_responses — the
+// answers already given stay in the history, only the resume pointer is cleared.
+export async function resetStudyProgressAction(collectionId: string): Promise<ResetStudyProgressResult> {
+  const supabase = await createClient()
+  const user = await requireUser(supabase)
+
+  const { error } = await supabase.from('study_progress').delete().eq('user_id', user.id).eq('collection_id', collectionId)
+
+  if (error) {
+    return { ok: false, error: 'Não foi possível reiniciar a sessão. Tente novamente.' }
+  }
+
+  return { ok: true }
+}
+
+export async function recordStudyResponseAction(
+  flashcardId: string,
+  collectionId: string,
+  acertou: boolean,
+  isLastCard: boolean
+): Promise<RecordStudyResponseResult> {
   const supabase = await createClient()
   const user = await requireUser(supabase)
 
@@ -27,7 +50,38 @@ export async function recordStudyResponseAction(flashcardId: string, acertou: bo
     // shouldn't interrupt the study session or make the UI look like the answer was lost.
   }
 
+  try {
+    await updateResumeState(supabase, user.id, collectionId, flashcardId, isLastCard)
+  } catch {
+    // Best-effort too: at worst the next session resumes from the wrong card instead of losing
+    // the answer that's already safely recorded above.
+  }
+
   return { ok: true }
+}
+
+// Marks this card as seen in the collection's current study pass (see
+// supabase/migrations/009_study_progress.sql). On the last card of the pass, clears all of the
+// collection's progress rows instead — a completed pass means the next session starts fresh,
+// so there is nothing left to resume.
+async function updateResumeState(
+  supabase: SupabaseClient,
+  userId: string,
+  collectionId: string,
+  flashcardId: string,
+  isLastCard: boolean
+): Promise<void> {
+  if (isLastCard) {
+    await supabase.from('study_progress').delete().eq('user_id', userId).eq('collection_id', collectionId)
+    return
+  }
+
+  await supabase
+    .from('study_progress')
+    .upsert(
+      { user_id: userId, collection_id: collectionId, flashcard_id: flashcardId },
+      { onConflict: 'user_id,collection_id,flashcard_id', ignoreDuplicates: true }
+    )
 }
 
 async function updateStudyProgress(supabase: SupabaseClient, userId: string): Promise<void> {

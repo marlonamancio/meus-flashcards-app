@@ -11,11 +11,11 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-export function StudySession({ collection }: { collection: CollectionDetail }) {
+export function StudySession({ collection, initialIndex = 0 }: { collection: CollectionDetail; initialIndex?: number }) {
   const cards = collection.cards
   const total = cards.length
 
-  const [currentIndex, setCurrentIndex] = useState(0)
+  const [currentIndex, setCurrentIndex] = useState(initialIndex)
   const [flipped, setFlipped] = useState(false)
   const [feedback, setFeedback] = useState<'yes' | 'no' | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -43,7 +43,11 @@ export function StudySession({ collection }: { collection: CollectionDetail }) {
     setFeedback(acertou ? 'yes' : 'no')
 
     const card = cards[currentIndex]
-    const [result] = await Promise.all([recordStudyResponseAction(card.id, acertou), wait(550)])
+    const isLastCard = currentIndex + 1 >= total
+    const [result] = await Promise.all([
+      recordStudyResponseAction(card.id, collection.id, acertou, isLastCard),
+      wait(550),
+    ])
 
     if (!result.ok) {
       setFeedback(null)
