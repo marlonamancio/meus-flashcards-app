@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Check, Flame, Meh, X, Zap } from 'lucide-react'
+import { Flame, Frown, Laugh, Meh, Smile, X } from 'lucide-react'
 import type { CollectionDetail } from '@/lib/collections-data'
 import { recordStudyResponseAction } from '@/app/(app)/collection/[id]/estudar/actions'
 import { Alert } from '@/components/ui/Alert'
@@ -16,10 +16,10 @@ function wait(ms: number): Promise<void> {
 // for "Fácil demais" (the one rating meant to stand out as unambiguously positive); the other
 // three use `soft` as background and `solid` as text/icon color instead.
 const RATING_OPTIONS = [
-  { rating: 0, label: 'Não lembrei', Icon: X, soft: 'var(--bad-soft)', solid: 'var(--bad)' },
+  { rating: 0, label: 'Não lembrei', Icon: Frown, soft: 'var(--bad-soft)', solid: 'var(--bad)' },
   { rating: 1, label: 'Foi difícil', Icon: Meh, soft: 'var(--accent-soft)', solid: 'var(--accent-strong)' },
-  { rating: 2, label: 'Fui bem', Icon: Check, soft: 'var(--good-soft)', solid: 'var(--good)' },
-  { rating: 3, label: 'Fácil demais', Icon: Zap, soft: 'var(--good-soft)', solid: 'var(--good)' },
+  { rating: 2, label: 'Fui bem', Icon: Smile, soft: 'var(--good-soft)', solid: 'var(--good)' },
+  { rating: 3, label: 'Fácil demais', Icon: Laugh, soft: 'var(--good-soft)', solid: 'var(--good)' },
 ] as const
 
 export function StudySession({ collection, initialQueue }: { collection: CollectionDetail; initialQueue: string[] }) {

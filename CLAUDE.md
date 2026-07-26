@@ -44,6 +44,7 @@ Criar flashcards manualmente é o principal atrito que impede o uso consistente 
    Decisão tomada após reflexão sobre a ciência por trás de flashcards: repetição espaçada é o core do produto, não uma feature de v2. Isso **substitui inteiramente** o modelo anterior de "passagem completa" (que exigia responder todos os cards da coleção numa sessão/série de sessões) por um modelo de **cards vencidos** — o padrão real de qualquer app sério de repetição espaçada.
 
    - **Rating de 4 níveis**, substituindo definitivamente o binário "sabia/não sabia": **Não lembrei / Foi difícil / Fui bem / Fácil demais** (equivalente a Again/Hard/Good/Easy do Anki/SM-2 moderno). Mapeamento para quality score do SM-2 (escala original 0-5): Não lembrei→0, Foi difícil→3, Fui bem→4, Fácil demais→5.
+   - **Ícones dos 4 botões**: expressões faciais via lucide-react (já usado no projeto, sem nova dependência) — `Frown` (Não lembrei) / `Meh` (Foi difícil) / `Smile` (Fui bem) / `Laugh` (Fácil demais). Não são emojis Unicode, são ícones da biblioteca, mantendo consistência visual com o resto do app.
    - **Algoritmo**: SM-2 clássico (1987). Por card+usuária, mantém: `repetitions` (contagem de acertos consecutivos), `interval_days` (intervalo atual), `ease_factor` (fator de facilidade, começa em 2.5), `due_date` (próxima data de revisão). A cada resposta: se quality < 3 (Não lembrei), reseta `repetitions` e `interval_days` para 1, `due_date` = amanhã. Se quality ≥ 3: `repetitions` incrementa; `interval_days` = 1 (primeira repetição), 6 (segunda), ou `interval_anterior × ease_factor` (demais); `ease_factor` se ajusta pela fórmula padrão do SM-2 conforme o quality score; `due_date` = hoje + `interval_days`.
    - **Card nunca revisado**: tratado como vencido imediatamente (sem `due_date` = elegível agora), mesmo padrão de qualquer app de repetição espaçada — todo card novo entra na fila de hoje.
    - **"Estudar esta coleção" mostra só os cards vencidos hoje** daquela coleção (`due_date <= hoje` OU nunca revisado), não a coleção inteira. Se não houver nenhum vencido, a usuária vê uma mensagem tipo "Nenhum card para revisar hoje, volte amanhã!" em vez do botão de estudar.
@@ -77,6 +78,13 @@ Criar flashcards manualmente é o principal atrito que impede o uso consistente 
     - **Cor/estilo do avatar de iniciais**: usuária escolhe entre um conjunto pré-definido de cores (mesma paleta já usada nos avatares de coleção — `COLLECTION_PALETTE`), sem upload de imagem na v1. Upload de foto real fica para v2 (exige Supabase Storage, bucket dedicado, mais complexidade — ver "Fora de escopo")
     - **Alterar senha**: formulário no Perfil (senha atual + nova senha + confirmar nova senha), respeitando a mesma política de senha forte já configurada no Supabase (mínimo 6 caracteres, maiúscula/minúscula/número/símbolo — ver seção "Autenticação" para o valor exato confirmado)
     - **"Sobre o Meus Flashcards"**: conteúdo real (hoje é botão sem função). Deve incluir: nome/descrição curta do app, link para o repositório GitHub público (`https://github.com/marlonamancio/meus-flashcards-app`), indicação de que é um projeto pessoal/MVP em desenvolvimento
+
+11. **Modo de navegação (browse) — ver cards sem estudar** (feedback real de uso)
+    - Ponto de entrada: tocar num card na lista de `/collection/[id]` (hoje não faz nada ao tocar)
+    - Abre uma visualização de card com virar (toque pra ver a resposta, mesmo padrão visual do modo de estudo: pergunta clara / resposta escura invertida) + navegação para frente/trás entre os cards da coleção (botões, mesmo padrão do resto do app — sem gesto/swipe, por consistência)
+    - Ordem de navegação: a mesma ordem já exibida na lista da tela (não precisa seguir a lógica de prioridade/vencimento do SM-2 — isso é exclusivo do modo de estudo)
+    - **Isolamento total do SM-2 (crítico)**: este modo é puramente leitura — nunca grava em `flashcard_responses` nem em `flashcard_schedule`. Não conta como revisão, não altera `due_date`, não afeta streak, meta diária, taxa de acerto ou badges. Sem botões de rating nenhum, só navegação + virar o card.
+    - Propósito: consulta rápida antes de uma prova, conferir se um card está correto, revisar sem "gastar" uma revisão do sistema de repetição espaçada — não substitui o modo de estudo, é complementar
 
 ## Fora de escopo (v1) — decisões conscientes
 
