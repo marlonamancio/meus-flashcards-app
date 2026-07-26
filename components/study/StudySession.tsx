@@ -2,61 +2,54 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Check, Flame, X } from 'lucide-react'
+import { Check, Flame, Meh, X, Zap } from 'lucide-react'
 import type { CollectionDetail } from '@/lib/collections-data'
 import { recordStudyResponseAction } from '@/app/(app)/collection/[id]/estudar/actions'
-import { orderByPriority } from '@/lib/study-order'
 import { Alert } from '@/components/ui/Alert'
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+// The 4-level rating (Anki/SM-2 style Again/Hard/Good/Easy) — index doubles as the `rating`
+// value (0-3) sent to recordStudyResponseAction. `solid` is used as the button background only
+// for "Fácil demais" (the one rating meant to stand out as unambiguously positive); the other
+// three use `soft` as background and `solid` as text/icon color instead.
+const RATING_OPTIONS = [
+  { rating: 0, label: 'Não lembrei', Icon: X, soft: 'var(--bad-soft)', solid: 'var(--bad)' },
+  { rating: 1, label: 'Foi difícil', Icon: Meh, soft: 'var(--accent-soft)', solid: 'var(--accent-strong)' },
+  { rating: 2, label: 'Fui bem', Icon: Check, soft: 'var(--good-soft)', solid: 'var(--good)' },
+  { rating: 3, label: 'Fácil demais', Icon: Zap, soft: 'var(--good-soft)', solid: 'var(--good)' },
+] as const
+
 export function StudySession({ collection, initialQueue }: { collection: CollectionDetail; initialQueue: string[] }) {
   const cards = collection.cards
   const cardsById = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards])
 
-  // No manual navigation: cards not yet answered in this pass are shown one at a time, in the
-  // order computed server-side (lowest historical accuracy first, with a random jitter mixed in —
-  // see lib/study-order.ts). `queue` only ever shrinks as cards are answered; a card is removed
-  // once and never comes back until a whole new pass starts.
+  // No manual navigation: cards due today not yet answered in this session are shown one at a
+  // time, in the order computed server-side (most overdue first, with a random jitter mixed in —
+  // see lib/study-order.ts). `queue` only ever shrinks as cards are answered.
   const [queue, setQueue] = useState<string[]>(initialQueue)
-  const [sessionTotal, setSessionTotal] = useState(initialQueue.length)
+  const [sessionTotal] = useState(initialQueue.length)
   const [flipped, setFlipped] = useState(false)
-  const [feedback, setFeedback] = useState<'yes' | 'no' | null>(null)
+  const [feedback, setFeedback] = useState<0 | 1 | 2 | 3 | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
-  const [knownCount, setKnownCount] = useState(0)
-  const [unknownCount, setUnknownCount] = useState(0)
+  const [ratingCounts, setRatingCounts] = useState<[number, number, number, number]>([0, 0, 0, 0])
   const [done, setDone] = useState(false)
 
-  function handleRestart() {
-    setQueue(orderByPriority(cards).map((c) => c.id))
-    setSessionTotal(cards.length)
-    setFlipped(false)
-    setFeedback(null)
-    setSubmitting(false)
-    setActionError(null)
-    setKnownCount(0)
-    setUnknownCount(0)
-    setDone(false)
-  }
-
-  async function handleAnswer(acertou: boolean) {
+  async function handleAnswer(rating: 0 | 1 | 2 | 3) {
     if (submitting) return
 
     setSubmitting(true)
     setActionError(null)
-    setFeedback(acertou ? 'yes' : 'no')
+    setFeedback(rating)
 
     const cardId = queue[0]
     const remainingQueue = queue.slice(1)
     const isLastCard = remainingQueue.length === 0
 
-    const [result] = await Promise.all([
-      recordStudyResponseAction(cardId, collection.id, acertou, isLastCard),
-      wait(550),
-    ])
+    const [result] = await Promise.all([recordStudyResponseAction(cardId, rating), wait(550)])
 
     if (!result.ok) {
       setFeedback(null)
@@ -65,8 +58,11 @@ export function StudySession({ collection, initialQueue }: { collection: Collect
       return
     }
 
-    if (acertou) setKnownCount((c) => c + 1)
-    else setUnknownCount((c) => c + 1)
+    setRatingCounts((counts) => {
+      const next = [...counts] as [number, number, number, number]
+      next[rating] += 1
+      return next
+    })
 
     setFeedback(null)
     setFlipped(false)
@@ -77,7 +73,7 @@ export function StudySession({ collection, initialQueue }: { collection: Collect
   }
 
   if (done) {
-    const answeredCount = knownCount + unknownCount
+    const answeredCount = ratingCounts.reduce((a, b) => a + b, 0)
 
     return (
       <div className="max-w-md mx-auto flex flex-col" style={{ height: '100dvh' }}>
@@ -102,37 +98,24 @@ export function StudySession({ collection, initialQueue }: { collection: Collect
             Você revisou {answeredCount} card{answeredCount === 1 ? '' : 's'} de {collection.nome}.
           </div>
 
-          <div className="flex gap-3 mt-[26px] w-full" style={{ maxWidth: 280 }}>
-            <div className="flex-1 rounded-2xl" style={{ padding: 16, background: 'var(--good-soft)' }}>
-              <div className="text-[26px] font-bold" style={{ color: 'var(--good)' }}>
-                {knownCount}
+          <div className="grid grid-cols-2 gap-3 mt-[26px] w-full" style={{ maxWidth: 280 }}>
+            {RATING_OPTIONS.map(({ rating, label, soft, solid }) => (
+              <div key={rating} className="rounded-2xl" style={{ padding: 16, background: soft }}>
+                <div className="text-[22px] font-bold" style={{ color: solid }}>
+                  {ratingCounts[rating]}
+                </div>
+                <div className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
+                  {label.toLowerCase()}
+                </div>
               </div>
-              <div className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
-                sabia
-              </div>
-            </div>
-            <div className="flex-1 rounded-2xl" style={{ padding: 16, background: 'var(--bad-soft)' }}>
-              <div className="text-[26px] font-bold" style={{ color: 'var(--bad)' }}>
-                {unknownCount}
-              </div>
-              <div className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
-                não sabia
-              </div>
-            </div>
+            ))}
           </div>
 
           <div className="flex flex-col gap-2.5 mt-7 w-full" style={{ maxWidth: 280 }}>
-            <button
-              onClick={handleRestart}
-              className="rounded-xl text-[15px] font-semibold"
-              style={{ padding: 15, color: 'var(--on-accent)', background: 'var(--accent)' }}
-            >
-              Estudar novamente
-            </button>
             <Link
               href={`/collection/${collection.id}`}
               className="text-center rounded-xl text-[15px] font-semibold"
-              style={{ padding: 15, background: 'var(--surface)', border: '1px solid var(--border)' }}
+              style={{ padding: 15, color: 'var(--on-accent)', background: 'var(--accent)' }}
             >
               Voltar à coleção
             </Link>
@@ -146,9 +129,10 @@ export function StudySession({ collection, initialQueue }: { collection: Collect
   }
 
   const card = cardsById.get(queue[0])!
-  const answeredCount = knownCount + unknownCount
+  const answeredCount = ratingCounts.reduce((a, b) => a + b, 0)
   const progressPct = Math.round((answeredCount / sessionTotal) * 100)
   const positionLabel = Math.min(answeredCount + 1, sessionTotal)
+  const feedbackOption = feedback !== null ? RATING_OPTIONS[feedback] : null
 
   return (
     <div className="max-w-md mx-auto flex flex-col" style={{ height: '100dvh' }}>
@@ -255,46 +239,37 @@ export function StudySession({ collection, initialQueue }: { collection: Collect
             </div>
           </div>
 
-          {feedback && (
+          {feedbackOption && (
             <div
               className="absolute inset-0 flex items-center justify-center"
-              style={{ background: feedback === 'yes' ? 'var(--good-soft)' : 'var(--bad-soft)', zIndex: 9, borderRadius: 24 }}
+              style={{ background: feedbackOption.soft, zIndex: 9, borderRadius: 24 }}
             >
               <div
                 className="flex items-center justify-center rounded-full"
-                style={{
-                  width: 96,
-                  height: 96,
-                  background: feedback === 'yes' ? 'var(--good)' : 'var(--bad)',
-                  boxShadow: feedback === 'yes' ? '0 16px 40px var(--good-soft)' : '0 16px 40px var(--bad-soft)',
-                  animation: 'pop 0.45s ease both',
-                }}
+                style={{ width: 96, height: 96, background: feedbackOption.solid, boxShadow: `0 16px 40px ${feedbackOption.soft}`, animation: 'pop 0.45s ease both' }}
               >
-                {feedback === 'yes' ? <Check size={46} color="#fff" strokeWidth={3} /> : <X size={42} color="#fff" strokeWidth={3} />}
+                <feedbackOption.Icon size={42} color="#fff" strokeWidth={2.6} />
               </div>
             </div>
           )}
         </div>
 
-        <div className="flex gap-[11px]" style={{ marginTop: 18, flex: 'none' }}>
-          <button
-            onClick={() => handleAnswer(false)}
-            disabled={submitting}
-            className="flex-1 flex items-center justify-center gap-2 rounded-2xl text-[15px] font-bold disabled:opacity-60"
-            style={{ padding: 16, background: 'var(--bad-soft)', color: 'var(--bad)', border: '1px solid transparent' }}
-          >
-            <X size={19} strokeWidth={2.3} />
-            Não sabia
-          </button>
-          <button
-            onClick={() => handleAnswer(true)}
-            disabled={submitting}
-            className="flex-1 flex items-center justify-center gap-2 rounded-2xl text-[15px] font-bold disabled:opacity-60"
-            style={{ padding: 16, background: 'var(--good-soft)', color: 'var(--good)', border: '1px solid transparent' }}
-          >
-            <Check size={19} strokeWidth={2.6} />
-            Sabia
-          </button>
+        <div className="grid grid-cols-2 gap-[9px]" style={{ marginTop: 18, flex: 'none' }}>
+          {RATING_OPTIONS.map(({ rating, label, Icon, soft, solid }) => {
+            const strong = rating === 3
+            return (
+              <button
+                key={rating}
+                onClick={() => handleAnswer(rating)}
+                disabled={submitting}
+                className="flex items-center justify-center gap-2 rounded-2xl text-[13.5px] font-bold disabled:opacity-60"
+                style={{ padding: 14, background: strong ? solid : soft, color: strong ? '#fff' : solid, border: '1px solid transparent' }}
+              >
+                <Icon size={17} strokeWidth={2.4} />
+                {label}
+              </button>
+            )
+          })}
         </div>
 
         {actionError && <Alert style={{ marginTop: 12 }}>{actionError}</Alert>}

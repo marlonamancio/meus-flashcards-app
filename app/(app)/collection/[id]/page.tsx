@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { requireUser } from '@/lib/supabase/require-user'
 import { getCollectionDetail } from '@/lib/collections-data'
-import { hasStudyProgress } from '@/lib/study-progress'
+import { getDueMap } from '@/lib/flashcard-schedule'
 import { AppShell } from '@/components/layout/AppShell'
 import { CollectionHeader } from '@/components/collection/CollectionHeader'
 import { StudyEntryButton } from '@/components/collection/StudyEntryButton'
@@ -15,7 +15,8 @@ export default async function CollectionPage({ params }: { params: Promise<{ id:
   const collection = await getCollectionDetail(supabase, user.id, id)
   if (!collection) notFound()
 
-  const hasProgress = collection.cardCount > 0 && (await hasStudyProgress(supabase, user.id, id))
+  const dueMap = await getDueMap(supabase, user.id, collection.cards.map((c) => c.id))
+  const hasDueCards = dueMap.size > 0
 
   const stats = [
     { value: collection.accuracyPct !== null ? `${collection.accuracyPct}%` : '—', label: 'taxa de acerto', color: 'var(--good)' },
@@ -42,7 +43,7 @@ export default async function CollectionPage({ params }: { params: Promise<{ id:
         </div>
       </div>
 
-      {collection.cardCount > 0 && <StudyEntryButton collectionId={collection.id} hasProgress={hasProgress} />}
+      {collection.cardCount > 0 && <StudyEntryButton collectionId={collection.id} hasDueCards={hasDueCards} />}
 
       <div className="flex gap-[9px]" style={{ marginTop: 18 }}>
         {stats.map((stat) => (

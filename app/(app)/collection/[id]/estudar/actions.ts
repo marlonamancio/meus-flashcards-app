@@ -4,87 +4,60 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
 import { requireUser } from '@/lib/supabase/require-user'
 import { BADGE_DEFS, addDaysToDateString, brasiliaDateString } from '@/lib/home-data'
+import { applySm2 } from '@/lib/sm2'
+import { getScheduleState, upsertSchedule } from '@/lib/flashcard-schedule'
 
 export type RecordStudyResponseResult = { ok: true } | { ok: false; error: string }
 
-export type ResetStudyProgressResult = { ok: true } | { ok: false; error: string }
+// The app's 4-level rating (Não lembrei/Foi difícil/Fui bem/Fácil demais, stored as 0-3) mapped
+// to SM-2's own 0-5 quality scale. Kept here rather than in lib/sm2.ts since it's specific to
+// this app's UI, not part of the published algorithm — see CLAUDE.md item 6.
+const RATING_TO_QUALITY = [0, 3, 4, 5] as const
 
-// "Começar do zero" from the resume-or-restart dialog: discards the in-progress pass for this
-// collection specifically (study_progress rows), without touching flashcard_responses — the
-// answers already given stay in the history, only the resume pointer is cleared.
-export async function resetStudyProgressAction(collectionId: string): Promise<ResetStudyProgressResult> {
+export async function recordStudyResponseAction(flashcardId: string, rating: number): Promise<RecordStudyResponseResult> {
   const supabase = await createClient()
   const user = await requireUser(supabase)
 
-  const { error } = await supabase.from('study_progress').delete().eq('user_id', user.id).eq('collection_id', collectionId)
-
-  if (error) {
-    return { ok: false, error: 'Não foi possível reiniciar a sessão. Tente novamente.' }
-  }
-
-  return { ok: true }
-}
-
-export async function recordStudyResponseAction(
-  flashcardId: string,
-  collectionId: string,
-  acertou: boolean,
-  isLastCard: boolean
-): Promise<RecordStudyResponseResult> {
-  const supabase = await createClient()
-  const user = await requireUser(supabase)
-
-  // The response itself is the record that matters — insert it before touching any of the
-  // streak/goal/badge bookkeeping below, so a bug or transient failure in that bookkeeping can
-  // never cause an answer to go unsaved.
-  const { error: insertError } = await supabase.from('flashcard_responses').insert({ user_id: user.id, flashcard_id: flashcardId, acertou })
+  // The response itself is the record that matters — insert it before touching the SM-2
+  // schedule or the streak/goal/badge bookkeeping below, so a bug or transient failure in either
+  // can never cause an answer to go unsaved. `acertou` stays a simple derived boolean (rating >=
+  // 1) so the existing accuracy stats keep working unchanged.
+  const { error: insertError } = await supabase
+    .from('flashcard_responses')
+    .insert({ user_id: user.id, flashcard_id: flashcardId, acertou: rating >= 1, rating })
 
   if (insertError) {
     return { ok: false, error: 'Não foi possível salvar sua resposta. Tente novamente.' }
   }
 
   try {
-    await updateStudyProgress(supabase, user.id)
+    await updateSchedule(supabase, user.id, flashcardId, rating)
   } catch {
-    // Best-effort: the response above is already saved: a hiccup in streak/badge bookkeeping
-    // shouldn't interrupt the study session or make the UI look like the answer was lost.
+    // Best-effort: the response above is already saved — a hiccup updating the SM-2 schedule
+    // shouldn't interrupt the study session or make the UI look like the answer was lost. Worst
+    // case this card's due_date doesn't move and it shows up as due again tomorrow too.
   }
 
   try {
-    await updateResumeState(supabase, user.id, collectionId, flashcardId, isLastCard)
+    await updateDailyProgress(supabase, user.id)
   } catch {
-    // Best-effort too: at worst the next session resumes from the wrong card instead of losing
-    // the answer that's already safely recorded above.
+    // Best-effort too: streak/badge bookkeeping is secondary to the answer already being saved.
   }
 
   return { ok: true }
 }
 
-// Marks this card as seen in the collection's current study pass (see
-// supabase/migrations/009_study_progress.sql). On the last card of the pass, clears all of the
-// collection's progress rows instead — a completed pass means the next session starts fresh,
-// so there is nothing left to resume.
-async function updateResumeState(
-  supabase: SupabaseClient,
-  userId: string,
-  collectionId: string,
-  flashcardId: string,
-  isLastCard: boolean
-): Promise<void> {
-  if (isLastCard) {
-    await supabase.from('study_progress').delete().eq('user_id', userId).eq('collection_id', collectionId)
-    return
-  }
+async function updateSchedule(supabase: SupabaseClient, userId: string, flashcardId: string, rating: number): Promise<void> {
+  const quality = RATING_TO_QUALITY[rating]
+  if (quality === undefined) throw new Error(`rating inválido: ${rating}`)
 
-  await supabase
-    .from('study_progress')
-    .upsert(
-      { user_id: userId, collection_id: collectionId, flashcard_id: flashcardId },
-      { onConflict: 'user_id,collection_id,flashcard_id', ignoreDuplicates: true }
-    )
+  const today = brasiliaDateString(new Date())
+  const current = await getScheduleState(supabase, userId, flashcardId)
+  const result = applySm2(current, quality, today)
+  await upsertSchedule(supabase, userId, flashcardId, result)
 }
 
-async function updateStudyProgress(supabase: SupabaseClient, userId: string): Promise<void> {
+async function updateDailyProgress(supabase: SupabaseClient, userId: string): Promise<void> {
   const now = new Date()
   const today = brasiliaDateString(now)
   const yesterday = addDaysToDateString(today, -1)
