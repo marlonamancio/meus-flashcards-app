@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { requireUser } from '@/lib/supabase/require-user'
 import { getCollectionDetail } from '@/lib/collections-data'
@@ -76,8 +77,9 @@ export default async function CollectionPage({ params }: { params: Promise<{ id:
       ) : (
         <div className="flex flex-col gap-2">
           {collection.cards.map((card) => (
-            <div
+            <Link
               key={card.id}
+              href={`/collection/${collection.id}/navegar/${card.id}`}
               className="flex items-center gap-3 rounded-[14px]"
               style={{ padding: '13px 14px', background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}
             >
@@ -100,7 +102,7 @@ export default async function CollectionPage({ params }: { params: Promise<{ id:
                   acerto
                 </div>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       )}

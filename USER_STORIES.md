@@ -132,6 +132,11 @@ Como usuária, quero escolher a cor do meu avatar de iniciais entre opções pr�
 **US33 — Alterar senha**
 Como usuária, quero alterar minha senha informando a atual e a nova, para manter minha conta segura sem depender de recuperação por email.
 
+## Modo de navegação (browse)
+
+**US34 — Navegar pelos cards sem estudar**
+Como usuária, quero tocar num card da lista da coleção e navegar livremente para frente e para trás entre os cards (vendo frente e verso), sem que isso conte como revisão nem afete meu progresso, para consultar rapidamente o conteúdo sem me comprometer com uma sessão de estudo.
+
 ## Fora de escopo (v1)
 
 - FSRS (algoritmo mais preciso que SM-2) — SM-2 já foi puxado para v1 (US14, US14a-c). Interleaving entre coleções diferentes numa mesma sessão também fica para v2 (detalhes técnicos no CLAUDE.md)
