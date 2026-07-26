@@ -49,17 +49,17 @@ Como usuária, quero subir um novo material e adicionar os cards gerados a uma c
 **US13 — Modo de estudo**
 Como usuária, quero visualizar os flashcards de uma coleção um de cada vez, virando o card para ver a resposta, para praticar recordação ativa.
 
-**US14 — Marcar resposta**
-Como usuária, ao responder um flashcard, quero marcar se eu sabia ou não sabia a resposta, para que o app registre meu desempenho.
+**US14 — Avaliar minha recordação (rating de 4 níveis)**
+Como usuária, ao responder um flashcard, quero avaliar o quão bem eu lembrei (Não lembrei / Foi difícil / Fui bem / Fácil demais), para que o app calcule quando devo revisar aquele card de novo.
 
-**US14a — Ordem inteligente dos cards**
-Como usuária, quero que os cards que eu mais erro apareçam com mais frequência primeiro (com alguma aleatoriedade para não decorar a sequência), para focar meu esforço onde mais preciso, sem deixar de ver os demais.
+**US14a — Estudar só o que está vencido hoje**
+Como usuária, ao clicar "Estudar esta coleção", quero ver apenas os cards que estão programados para revisão hoje (segundo a repetição espaçada), não a coleção inteira de uma vez, para focar meu tempo no que realmente precisa de reforço agora.
 
-**US14b — Retomar sessão sem repetir os já respondidos**
-Como usuária, quero que ao retomar uma sessão incompleta, os cards que já respondi não apareçam de novo, e os que faltam sejam reordenados (mesma lógica de prioridade + aleatoriedade), para continuar de forma eficiente sem repetir trabalho.
+**US14b — Ordem intercalada dentro da sessão**
+Como usuária, quero que os cards vencidos apareçam em ordem parcialmente aleatória (priorizando os mais atrasados), para não decorar a sequência e continuar de fato exercitando a lembrança.
 
-**US14c — Escolher entre continuar ou recomeçar**
-Como usuária, ao clicar "Estudar esta coleção" com uma sessão em andamento, quero que o app me pergunte se quero continuar de onde parei ou começar do zero, para eu decidir conforme minha vontade naquele momento, em vez do app decidir por mim.
+**US14c — Nada para revisar hoje**
+Como usuária, se não houver nenhum card vencido numa coleção, quero ver uma mensagem clara em vez do botão de estudar, para saber que já revisei tudo que precisava por hoje.
 
 ## Acompanhamento de desempenho
 
@@ -134,7 +134,7 @@ Como usuária, quero alterar minha senha informando a atual e a nova, para mante
 
 ## Fora de escopo (v1)
 
-- Repetição espaçada / algoritmo de agendamento de revisão — inclui, para quando chegar: rating de 4 níveis no estudo (Não lembrei/Foi difícil/Fui bem/Fácil demais, substituindo sabia/não sabia) e ordem de apresentação por embaralhamento ou por prioridade decidida pelo algoritmo (detalhes técnicos no CLAUDE.md)
+- FSRS (algoritmo mais preciso que SM-2) — SM-2 já foi puxado para v1 (US14, US14a-c). Interleaving entre coleções diferentes numa mesma sessão também fica para v2 (detalhes técnicos no CLAUDE.md)
 - Importação via YouTube ou áudio
 - Exportação/importação para Anki, Quizlet, etc em formato proprietário (a importação via CSV genérico já cobre o caso de uso real)
 - Imagens geradas por IA nos cards
