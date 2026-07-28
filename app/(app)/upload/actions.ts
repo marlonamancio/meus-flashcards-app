@@ -1,10 +1,13 @@
 'use server'
 
 import { parse } from 'csv-parse/sync'
+import { after } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireUser } from '@/lib/supabase/require-user'
+import { extractContent, materialTipoFromFile } from '@/lib/extraction'
 
 const MAX_CSV_BYTES = 5 * 1024 * 1024
+const MATERIALS_BUCKET = 'materiais'
 
 export type ImportSummary = {
   importedCount: number
@@ -164,4 +167,90 @@ export async function importCsvAction(formData: FormData): Promise<ImportCsvResu
       warning,
     },
   }
+}
+
+export type UploadMaterialResult = { ok: true; materialId: string } | { ok: false; error: string }
+
+export type RegisterMaterialInput = {
+  storagePath: string
+  nome: string
+  mimeType: string
+}
+
+// The file itself never touches this action — it is uploaded client-side straight to Supabase
+// Storage first (see ExtractionDebug.tsx), because routing it through a Server Action/Route
+// Handler here hits a real Node/undici bug: `request.formData()` throws "Failed to parse body as
+// FormData" for multipart bodies as small as ~11 MB, well under the 20 MB this app needs to
+// support (reproduced identically in both a Server Action and a plain Route Handler — it is a
+// Node-level limitation, not something `experimental.serverActions.bodySizeLimit` controls). This
+// action only registers the already-uploaded object and kicks off extraction.
+export async function registerMaterialAction(input: RegisterMaterialInput): Promise<UploadMaterialResult> {
+  const supabase = await createClient()
+  const user = await requireUser(supabase)
+
+  const { storagePath, nome, mimeType } = input
+
+  // Defense in depth: Storage RLS (013_storage_materiais_policies.sql) already guarantees this,
+  // but a mismatched path here would mean we register a material pointing at a file the current
+  // user does not actually own.
+  if (!storagePath.startsWith(`${user.id}/`)) {
+    return { ok: false, error: 'Caminho de arquivo inválido.' }
+  }
+
+  const tipo = materialTipoFromFile(mimeType, nome)
+  if (!tipo) {
+    await supabase.storage.from(MATERIALS_BUCKET).remove([storagePath])
+    return { ok: false, error: 'Formato não suportado. Envie PDF, imagem (JPEG/PNG/WEBP), Word (.docx) ou PowerPoint (.pptx).' }
+  }
+
+  const { data: material, error: insertError } = await supabase
+    .from('materials')
+    .insert({ user_id: user.id, nome, tipo, status: 'processando', storage_path: storagePath })
+    .select('id')
+    .single()
+
+  if (insertError || !material) {
+    await supabase.storage.from(MATERIALS_BUCKET).remove([storagePath])
+    return { ok: false, error: 'Não foi possível registrar o material.' }
+  }
+
+  const materialId = material.id as string
+
+  // Runs after the response is sent, so the action returns immediately instead of blocking the
+  // request on extraction (vision-based extraction in particular can take a while) — see
+  // CLAUDE.md "Limite de duração de função serverless" for why this can't be a single blocking
+  // call. The client picks up the result by polling the material row's status.
+  after(async () => {
+    try {
+      const { data: fileBlob, error: downloadError } = await supabase.storage.from(MATERIALS_BUCKET).download(storagePath)
+      if (downloadError || !fileBlob) {
+        await supabase
+          .from('materials')
+          .update({ status: 'erro', erro_mensagem: 'Não foi possível ler o arquivo enviado.' })
+          .eq('id', materialId)
+        return
+      }
+
+      const buffer = Buffer.from(await fileBlob.arrayBuffer())
+      const content = await extractContent(buffer, tipo, mimeType)
+      const fullText = content.fullText.trim()
+
+      if (!fullText) {
+        await supabase
+          .from('materials')
+          .update({ status: 'erro', erro_mensagem: 'Não foi possível extrair texto do arquivo.' })
+          .eq('id', materialId)
+        return
+      }
+
+      await supabase.from('materials').update({ status: 'pronto', conteudo_extraido: content.chunks }).eq('id', materialId)
+    } catch (err) {
+      await supabase
+        .from('materials')
+        .update({ status: 'erro', erro_mensagem: err instanceof Error ? err.message : 'Erro desconhecido na extração.' })
+        .eq('id', materialId)
+    }
+  })
+
+  return { ok: true, materialId }
 }

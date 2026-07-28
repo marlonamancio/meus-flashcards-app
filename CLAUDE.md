@@ -6,7 +6,7 @@
 
 ## Contexto do projeto
 
-App pessoal de flashcards para estudo, criado como projeto de aprendizado (pair programming com Claude / Claude Code) e para uso real no dia a dia da usuária, que estuda para concurso público.
+App pessoal de flashcards para estudo, criado como projeto de aprendizado (pair programming com Claude / Claude Code) e para uso real no dia a dia do usuário, que estuda para concurso público.
 
 **Não é um produto comercial.** Sem intenção de divulgação ou monetização neste momento. Escopo intencionalmente simples e enxuto, focado em resolver o problema real: gerar flashcards automaticamente a partir de material de estudo, sem exigir digitação manual.
 
@@ -26,7 +26,7 @@ Criar flashcards manualmente é o principal atrito que impede o uso consistente 
 
 2. **Geração de flashcards via IA**
    - Formato: pergunta/resposta simples (sem cloze, sem múltipla escolha por enquanto)
-   - Quantidade de cards: escolha manual (usuária define um número) OU automática (IA decide com base na densidade do material)
+   - Quantidade de cards: escolha manual (usuário define um número) OU automática (IA decide com base na densidade do material)
 
 3. **Revisão antes de salvar**
    - Editar frente/verso de qualquer card gerado antes de confirmar
@@ -45,9 +45,9 @@ Criar flashcards manualmente é o principal atrito que impede o uso consistente 
 
    - **Rating de 4 níveis**, substituindo definitivamente o binário "sabia/não sabia": **Não lembrei / Foi difícil / Fui bem / Fácil demais** (equivalente a Again/Hard/Good/Easy do Anki/SM-2 moderno). Mapeamento para quality score do SM-2 (escala original 0-5): Não lembrei→0, Foi difícil→3, Fui bem→4, Fácil demais→5.
    - **Ícones dos 4 botões**: expressões faciais via lucide-react (já usado no projeto, sem nova dependência) — `Frown` (Não lembrei) / `Meh` (Foi difícil) / `Smile` (Fui bem) / `Laugh` (Fácil demais). Não são emojis Unicode, são ícones da biblioteca, mantendo consistência visual com o resto do app.
-   - **Algoritmo**: SM-2 clássico (1987). Por card+usuária, mantém: `repetitions` (contagem de acertos consecutivos), `interval_days` (intervalo atual), `ease_factor` (fator de facilidade, começa em 2.5), `due_date` (próxima data de revisão). A cada resposta: se quality < 3 (Não lembrei), reseta `repetitions` e `interval_days` para 1, `due_date` = amanhã. Se quality ≥ 3: `repetitions` incrementa; `interval_days` = 1 (primeira repetição), 6 (segunda), ou `interval_anterior × ease_factor` (demais); `ease_factor` se ajusta pela fórmula padrão do SM-2 conforme o quality score; `due_date` = hoje + `interval_days`.
+   - **Algoritmo**: SM-2 clássico (1987). Por card+usuário, mantém: `repetitions` (contagem de acertos consecutivos), `interval_days` (intervalo atual), `ease_factor` (fator de facilidade, começa em 2.5), `due_date` (próxima data de revisão). A cada resposta: se quality < 3 (Não lembrei), reseta `repetitions` e `interval_days` para 1, `due_date` = amanhã. Se quality ≥ 3: `repetitions` incrementa; `interval_days` = 1 (primeira repetição), 6 (segunda), ou `interval_anterior × ease_factor` (demais); `ease_factor` se ajusta pela fórmula padrão do SM-2 conforme o quality score; `due_date` = hoje + `interval_days`.
    - **Card nunca revisado**: tratado como vencido imediatamente (sem `due_date` = elegível agora), mesmo padrão de qualquer app de repetição espaçada — todo card novo entra na fila de hoje.
-   - **"Estudar esta coleção" mostra só os cards vencidos hoje** daquela coleção (`due_date <= hoje` OU nunca revisado), não a coleção inteira. Se não houver nenhum vencido, a usuária vê uma mensagem tipo "Nenhum card para revisar hoje, volte amanhã!" em vez do botão de estudar.
+   - **"Estudar esta coleção" mostra só os cards vencidos hoje** daquela coleção (`due_date <= hoje` OU nunca revisado), não a coleção inteira. Se não houver nenhum vencido, o usuário vê uma mensagem tipo "Nenhum card para revisar hoje, volte amanhã!" em vez do botão de estudar.
    - **"Retomar de onde parou" fica automático, sem tabela dedicada**: como cada resposta já atualiza a `due_date` daquele card individualmente (empurrando pra frente), fechar a sessão no meio e reabrir naturalmente já mostra só o que ainda não foi respondido hoje — a tabela `study_progress` e toda a lógica de "passagem"/dialog de continuar-recomeçar ficam **obsoletas e devem ser removidas** (não adaptadas). O agendamento do SM-2 já resolve isso de graça.
    - **Interleaving dentro da sessão**: os cards vencidos de uma mesma coleção continuam sendo exibidos com embaralhamento (reaproveitar o mecanismo já existente de prioridade + jitter de `lib/study-order.ts`, adaptando a métrica de prioridade de "menor taxa de acerto" para "mais atrasado" — quanto mais dias vencido, maior prioridade, com a mesma margem de aleatoriedade). Interleaving **entre coleções diferentes** (misturar cards de matérias diferentes numa sessão só) fica para v2 — v1 continua com sessão por coleção.
    - **Fechar no meio da sessão (botão X)**: mantém o resumo parcial (contagem por nível de rating respondido até ali) — esse comportamento não muda, só o rating vira 4 níveis em vez de 2.
@@ -60,7 +60,7 @@ Criar flashcards manualmente é o principal atrito que impede o uso consistente 
    - Destaque para os cards com maior taxa de erro
 
 8. **Importação de flashcards existentes (CSV)**
-   - Usuária pode importar flashcards já criados em outro app/meio via upload de arquivo CSV
+   - Usuário pode importar flashcards já criados em outro app/meio via upload de arquivo CSV
    - Formato esperado: duas colunas (frente, verso), com cabeçalho — delimitador vírgula ou ponto-e-vírgula, codificação UTF-8
    - Mesmo fluxo de destino do upload com IA: adicionar a coleção existente, criar coleção nova, ou deixar sem coleção
    - Validação básica: linhas malformadas (faltando frente ou verso) são ignoradas na importação, não travam o processo inteiro
@@ -68,14 +68,14 @@ Criar flashcards manualmente é o principal atrito que impede o uso consistente 
 
 9. **Tela "Não organizados"** (v1, sequenciada após o pipeline de IA estar pronto)
    - Cards sem coleção (órfãos por nunca terem sido categorizados, ou por terem sobrado após uma coleção ser apagada) ficam listados nessa tela dedicada — hoje é só um item visual na lista de Coleções, sem rota/tela real por trás
-   - Para cada card: **sugestão automática de coleção via IA**, com base no conteúdo do card comparado às coleções existentes da usuária (reaproveita a mesma infraestrutura de chamada à API da Anthropic do pipeline de geração — não é uma integração de IA nova e isolada)
-   - Usuária toca na coleção sugerida para mover o card, ou remove o card diretamente (protótipo original: "Toque na coleção sugerida para mover cada card, ou remova o que não precisa")
+   - Para cada card: **sugestão automática de coleção via IA**, com base no conteúdo do card comparado às coleções existentes do usuário (reaproveita a mesma infraestrutura de chamada à API da Anthropic do pipeline de geração — não é uma integração de IA nova e isolada)
+   - Usuário toca na coleção sugerida para mover o card, ou remove o card diretamente (protótipo original: "Toque na coleção sugerida para mover cada card, ou remova o que não precisa")
    - Depende do pipeline de upload+geração via IA já estar implementado (item 3) — não faz sentido implementar isolado antes disso, seria uma segunda integração de IA solta no código
 
 10. **Edição de perfil**
     - **Nome de exibição**: campo editável no Perfil, salvo em `user_metadata.name` do Supabase Auth. Usado no "Olá, [nome]" da Home e em qualquer outro lugar que hoje usa o fallback genérico
     - **Avatar do header (Home)**: vira link clicável levando para `/perfil`
-    - **Cor/estilo do avatar de iniciais**: usuária escolhe entre um conjunto pré-definido de cores (mesma paleta já usada nos avatares de coleção — `COLLECTION_PALETTE`), sem upload de imagem na v1. Upload de foto real fica para v2 (exige Supabase Storage, bucket dedicado, mais complexidade — ver "Fora de escopo")
+    - **Cor/estilo do avatar de iniciais**: usuário escolhe entre um conjunto pré-definido de cores (mesma paleta já usada nos avatares de coleção — `COLLECTION_PALETTE`), sem upload de imagem na v1. Upload de foto real fica para v2 (exige Supabase Storage, bucket dedicado, mais complexidade — ver "Fora de escopo")
     - **Alterar senha**: formulário no Perfil (senha atual + nova senha + confirmar nova senha), respeitando a mesma política de senha forte já configurada no Supabase (mínimo 6 caracteres, maiúscula/minúscula/número/símbolo — ver seção "Autenticação" para o valor exato confirmado)
     - **"Sobre o Meus Flashcards"**: conteúdo real (hoje é botão sem função). Deve incluir: nome/descrição curta do app, link para o repositório GitHub público (`https://github.com/marlonamancio/meus-flashcards-app`), indicação de que é um projeto pessoal/MVP em desenvolvimento
 
@@ -88,7 +88,7 @@ Criar flashcards manualmente é o principal atrito que impede o uso consistente 
 
 ## Fora de escopo (v1) — decisões conscientes
 
-- **Timezone configurável por usuária** — v1 usa timezone fixo em código (`America/Sao_Paulo`) para toda lógica de "dia" (streak, meta diária, daily_activity), já que é usuária única no Brasil. Um campo de timezone no Perfil, lido dinamicamente em vez de fixo, fica para v2 (relevante se o app escalar para mais usuárias em fusos diferentes). Fixar agora não bloqueia essa evolução depois — troca uma constante por uma leitura de configuração, a lógica de cálculo de "dia" em si permanece a mesma.
+- **Timezone configurável por usuário** — v1 usa timezone fixo em código (`America/Sao_Paulo`) para toda lógica de "dia" (streak, meta diária, daily_activity), já que é usuário única no Brasil. Um campo de timezone no Perfil, lido dinamicamente em vez de fixo, fica para v2 (relevante se o app escalar para mais usuários em fusos diferentes). Fixar agora não bloqueia essa evolução depois — troca uma constante por uma leitura de configuração, a lógica de cálculo de "dia" em si permanece a mesma.
 - **Upload de foto real como avatar** — v1 permite só escolher cor/estilo do avatar de iniciais (sem imagem). Upload de foto de verdade fica para v2, quando fizer sentido configurar um bucket dedicado no Supabase Storage para isso.
 - **FSRS — algoritmo mais preciso que SM-2, evolução futura.** SM-2 já foi puxado para v1 (ver item 6 "Modo de estudo"). FSRS fica para v2: modela dificuldade/estabilidade/retrievability por card de forma mais precisa que a fórmula fixa do SM-2, tipicamente exigindo menos revisões para o mesmo nível de retenção. Existe biblioteca de referência oficial em TypeScript (`ts-fsrs`) que evita reimplementar a matemática do zero — trocar a "engine" de cálculo sem precisar mudar o resto da arquitetura (schema de agendamento já criado para SM-2 é compatível em espírito).
 - **Interleaving entre coleções diferentes** — v1 embaralha os cards vencidos dentro de uma mesma coleção (uma sessão de estudo é sempre de uma coleção só). Misturar cards de coleções diferentes numa sessão única (ex: revisar Direito Constitucional e Português juntos, intercalados) tem respaldo científico (reduz ainda mais decoreba por contexto/tópico), mas fica para v2 — exige repensar o que significa "sessão" (não mais por coleção) e provavelmente uma tela de "revisão geral do dia" separada de "estudar uma coleção específica".
@@ -97,7 +97,7 @@ Criar flashcards manualmente é o principal atrito que impede o uso consistente 
 - Exportação para Anki, Quizlet, etc, ou importação de formatos nativos desses apps (ex: .apkg) — a importação via CSV genérico já cobre o caso de uso real (trazer cards já criados), sem precisar suportar formato proprietário de terceiros
 - **Coluna "Coleção" no CSV de importação** — permitiria importar cards de várias coleções num único arquivo (uma coluna extra com o nome da coleção de destino por linha). Se a coluna estiver toda vazia, mantém o comportamento atual (pergunta destino único); se parcialmente preenchida, linhas com valor vão para a coleção nomeada (criando se não existir, com normalização de nome — trim + case-insensitive, pra evitar duplicata por erro de digitação) e linhas vazias caem em "sem coleção". Não implementado na v1 porque muda a natureza do `DestinationPicker` (de "um destino por arquivo" para "destino por linha") e complexifica o resumo da importação (quebra por coleção, não só total importado/ignorado). Por enquanto, múltiplas coleções em um envio = múltiplos CSVs, um por coleção — já suportado sem trabalho adicional.
 - **Notificações de estudo (push)** — apareceu no protótipo do Claude Design (toggle na tela de Perfil), mas fica para v2: exige permissão do navegador, service worker dedicado e gatilho de backend para disparo, complexidade real além do resto do MVP. Manter o toggle fora do Perfil na v1, ou deixá-lo desabilitado/"em breve" se já estiver no design
-- **Exportar meus cards (CSV)** — também apareceu no protótipo (Perfil), fica para v2. Seria o espelho simples da importação CSV, mas não é essencial para o problema original (ela quer gerar cards, não exportá-los)
+- **Exportar meus cards (CSV)** — também apareceu no protótipo (Perfil), fica para v2. Seria o espelho simples da importação CSV, mas não é essencial para o problema original (o usuário quer gerar cards, não exportá-los)
 - Imagens geradas por IA nos cards
 - Dashboard de estatísticas avançado
 - Suporte multilíngue (só português)
@@ -126,8 +126,8 @@ Protótipo final iterado no Claude Design. Cada tela aprovada deve virar referê
 
 Estrutura de cima para baixo (ordem de prioridade visual):
 
-1. **Cabeçalho**: saudação personalizada ("Olá, [nome]") + data + switch de dark/light mode (ícone de lua/sol) + avatar/inicial da usuária no canto superior direito
-2. **Card de ofensiva (streak)** — componente principal da home, reforça o hábito diário. **Regra de contagem (decisão final)**: o streak só incrementa no dia se a **meta diária de cards for atingida naquele dia** — responder cards sem bater a meta não conta para a ofensiva. Decisão consciente de ser mais exigente (força disciplina real), com a usuária tendo controle total sobre o quão fácil/difícil isso é, já que a meta diária é ajustável por ela mesma na tela de Perfil (stepper "Meta diária"). Se pular um dia (sem bater a meta), o streak reseta para 0 no próximo dia com meta batida, seguindo a mesma lógica de reset já implementada:
+1. **Cabeçalho**: saudação personalizada ("Olá, [nome]") + data + switch de dark/light mode (ícone de lua/sol) + avatar/inicial do usuário no canto superior direito
+2. **Card de ofensiva (streak)** — componente principal da home, reforça o hábito diário. **Regra de contagem (decisão final)**: o streak só incrementa no dia se a **meta diária de cards for atingida naquele dia** — responder cards sem bater a meta não conta para a ofensiva. Decisão consciente de ser mais exigente (força disciplina real), com o usuário tendo controle total sobre o quão fácil/difícil isso é, já que a meta diária é ajustável por ele mesmo na tela de Perfil (stepper "Meta diária"). Se pular um dia (sem bater a meta), o streak reseta para 0 no próximo dia com meta batida, seguindo a mesma lógica de reset já implementada:
    - Número de dias consecutivos + recorde pessoal ("Seu recorde é X dias")
    - Calendário semanal (S T Q Q S S D) com indicador visual de dias concluídos (check preenchido), dia atual em destaque (contorno), dias futuros neutros
 3. **Meta de hoje**: barra de progresso com contagem "X / Y cards", meta diária configurável
@@ -169,11 +169,89 @@ Telas de Login, Coleção individual, Coleções, Progresso e Perfil revisadas e
 
 **Ajuste para a v1 na tela de Perfil**: os toggles de "Notificações de estudo" e o item "Exportar meus cards" aparecem no protótipo, mas ambos ficam para v2 (ver seção "Fora de escopo"). Remover da v1 ou manter visualmente desabilitados/"em breve", a critério da implementação — não bloquear a v1 por causa deles.
 
-### Novo material (upload) — duas abas no mesmo fluxo
+### Novo material (upload) — duas abas, três formas de gerar
 
-- Aba "Gerar com IA": upload de material (PDF/imagem/Word/PowerPoint, até 20 MB) → quantidade automática ou manual → destino (coleção existente/nova/sem coleção)
-- Aba "Importar CSV": upload de CSV (até 5 MB) → formato esperado exibido na tela + botão "baixar modelo" → mesmo destino (coleção existente/nova/sem coleção)
-- As duas abas reaproveitam o mesmo componente de "onde salvar os cards" — importante manter isso como um componente único reutilizado no código, não duplicado entre os dois fluxos
+**Nota de implementação — tela de debug temporária**: `/upload/debug` foi criada durante o desenvolvimento do pipeline de extração (Estágio 1) para testar upload + polling de status + preview do conteúdo extraído, sem depender da UI final. É **ferramenta de desenvolvimento, não parte do produto** — precisa ser removida ou ocultada antes do app ser usado por outras pessoas além do desenvolvedor (antes de divulgar novas funcionalidades para os amigos testando), senão vira uma porta lateral estranha na experiência final e uma forma de gastar a API key sem os controles da UI de verdade. Não esquecer de remover ao final do Estágio 3.
+
+- **Aba "Gerar com IA"**: dentro dela, o usuário escolhe entre duas origens de conteúdo (não são abas novas, é uma escolha dentro da mesma aba):
+  - **Enviar arquivo**: upload de material (PDF/imagem/Word/PowerPoint, até 20 MB) → extração de conteúdo → geração
+  - **Descrever um tema** (novo): campo de texto livre (ex: "Princípios do Direito Administrativo") → a IA gera cards a partir do próprio conhecimento dela, sem material de referência do usuário. **Aviso obrigatório na UI** sempre que essa opção for usada: cards gerados por tema livre não têm fonte de referência do usuário e podem conter imprecisões da IA — merecem revisão mais atenta que os gerados a partir de material enviado. Mostrar isso de forma visível antes ou durante a geração, não só como texto pequeno ignorável.
+  - As duas origens convergem no mesmo fluxo depois: quantidade automática ou manual → revisão antes de salvar → destino (coleção existente/nova/sem coleção)
+- **Aba "Importar CSV"**: upload de CSV (até 5 MB) → formato esperado exibido na tela + botão "baixar modelo" → mesmo destino (coleção existente/nova/sem coleção)
+- Todas as origens reaproveitam o mesmo componente de "onde salvar os cards" (`DestinationPicker`) — não duplicar entre os fluxos
+
+### Formato do prompt de geração de flashcards (IA)
+
+**Recomendação técnica**: usar **tool use** (function calling) da API da Anthropic em vez de pedir JSON em texto livre — mais confiável, evita parsing frágil de markdown/texto solto ao redor do JSON.
+
+```javascript
+tools: [{
+  name: "criar_flashcards",
+  description: "Cria uma lista de flashcards de estudo",
+  input_schema: {
+    type: "object",
+    properties: {
+      cards: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: { frente: { type: "string" }, verso: { type: "string" } },
+          required: ["frente", "verso"]
+        }
+      }
+    },
+    required: ["cards"]
+  }
+}],
+tool_choice: { type: "tool", name: "criar_flashcards" }
+```
+
+**Prompt base (instrução do sistema)**:
+```
+Você é um assistente especializado em criar flashcards de estudo eficazes 
+para concursos públicos brasileiros.
+
+Diretrizes:
+- Cada flashcard testa um único conceito ou fato (atomicidade)
+- Perguntas claras e diretas, sem ambiguidade
+- Respostas concisas mas completas
+- Evite perguntas triviais demais ou fáceis demais a ponto de não exigir 
+  recordação real
+- Evite duplicar o mesmo conceito em cards diferentes
+- Preserve com precisão números de artigo de lei, datas e nomes próprios 
+  quando mencionados no conteúdo de origem
+- Responda chamando a ferramenta criar_flashcards, sem texto adicional
+```
+
+**Diferença crítica entre os dois modos de entrada** (não é cosmética, define o comportamento de precisão):
+
+- **Modo arquivo**: `"Gere flashcards EXCLUSIVAMENTE a partir do conteúdo abaixo. Não adicione informação externa ao que está no texto, mesmo que você 'saiba' mais sobre o assunto — a fonte de verdade é o material fornecido pelo usuário."` + conteúdo extraído
+- **Modo tema livre**: `"Gere flashcards sobre o tema abaixo, usando seu conhecimento. Priorize precisão factual: se não tiver certeza absoluta de um número de artigo de lei, data específica ou dado exato, prefira formular a pergunta de forma mais conceitual em vez de arriscar um número impreciso."` + tema informado
+
+**Quantidade**: `"Gere quantos flashcards forem necessários para cobrir os conceitos-chave, evitando repetição e trivialidade — normalmente entre 5 e 40, dependendo da densidade"` (automático) ou `"Gere exatamente {N} flashcards cobrindo os conceitos mais importantes"` (manual).
+
+**Limitação aceita para v1**: chunking de materiais grandes pode gerar cards levemente repetidos entre pedaços diferentes — não implementar deduplicação automática agora, a etapa de revisão antes de salvar já cobre isso.
+
+### Pipeline de sanitização do conteúdo extraído (extensível)
+
+Materiais de fontes diferentes (cursos, apostilas, PDFs de diferentes plataformas) trazem ruído específico da fonte — marcas d'água anti-pirataria, cabeçalhos/rodapés repetidos, numeração de página, branding da plataforma. Em vez de tratar cada caso como correção pontual, desenhar como um **pipeline de regras**, aplicado depois da extração e antes de persistir/chunkar/enviar para geração:
+
+```
+lib/extraction/sanitize.ts — array de regras, cada uma um padrão (regex ou 
+função) + descrição do que remove. Aplicadas em sequência sobre o texto 
+extraído, antes de qualquer outra etapa.
+```
+
+**Regras já identificadas**:
+- **CPF + nome (marca d'água anti-pirataria)**: padrão `{11 dígitos, com ou sem formatação}-{nome próprio}` repetido em várias páginas — dado pessoal sensível de terceiro, não deve ser persistido nem enviado para a API de geração, além de ser ruído puro para a qualidade dos cards gerados. Regra geral (detecção de padrão de CPF), não hardcoded para um CPF específico.
+
+**Regras candidatas para adicionar conforme aparecerem** (não implementar preventivamente, só quando um material real expuser a necessidade): numeração de página repetida ("Página X de Y"), cabeçalho/rodapé idêntico em todo chunk, outros formatos de marca d'água (email, telefone), branding/propaganda da plataforma de origem.
+
+Aplicar a todos os tipos de arquivo (PDF, Word, PowerPoint), não só PDF — proteções parecidas podem aparecer em qualquer formato.
+
+
+
+Sem limite de geração por usuário/dia na v1, mesmo com cadastro público (amigos testando) — volume esperado é baixo o suficiente para não justificar a complexidade agora. Monitorar manualmente o uso/custo no console da Anthropic durante o período de teste com amigos; se o volume crescer ou surgir uso abusivo, implementar limite (ex: N gerações/dia por usuário) como ajuste reativo, não preventivo.
 
 ## PWA e mobile-first
 
@@ -196,8 +274,8 @@ Telas de Login, Coleção individual, Coleções, Progresso e Perfil revisadas e
 - Processamento de IA sempre assíncrono, nunca bloqueando a UI
 
 **Segurança:**
-- Autenticação desde a v1, mesmo com usuária única — trata-se de dados privados (material de estudo, desempenho). Ver seção "Autenticação" abaixo.
-- Row Level Security (RLS) no Supabase — cada usuária só acessa seus próprios dados a nível de banco, não só de aplicação
+- Autenticação desde a v1, mesmo com usuário única — trata-se de dados privados (material de estudo, desempenho). Ver seção "Autenticação" abaixo.
+- Row Level Security (RLS) no Supabase — cada usuário só acessa seus próprios dados a nível de banco, não só de aplicação
 - **Grant explícito por tabela**: no setup do projeto, "Automatically expose new tables" fica desativado (recomendação de segurança). Isso significa que toda tabela nova precisa de um `GRANT` explícito no Postgres antes de ficar acessível via Data API/`supabase-js` — RLS e Grant são camadas diferentes (Grant controla se a role acessa a tabela; RLS controla quais linhas ela vê). Ao criar cada tabela, incluir na mesma migration: `ENABLE ROW LEVEL SECURITY`, as policies de RLS, e o `GRANT` correspondente (ex: `GRANT SELECT, INSERT, UPDATE, DELETE ON public.tabela TO authenticated;`). Sem o Grant, chamadas retornam erro `42501` (permission denied) mesmo com RLS configurado corretamente.
 - Validação de tipo e tamanho de arquivo no upload (evitar upload de arquivos maliciosos ou excessivamente grandes)
 - Nunca expor a chave da API de IA no client — todas as chamadas à IA passam pelo backend/Edge Function
@@ -206,23 +284,23 @@ Telas de Login, Coleção individual, Coleções, Progresso e Perfil revisadas e
 
 ## Autenticação
 
-Mesmo sendo uso restrito a uma única usuária por enquanto, a autenticação entra desde a v1 por questões de privacidade e segurança dos dados (material de estudo pode incluir conteúdo sensível/pessoal).
+Mesmo sendo uso restrito a uma única usuário por enquanto, a autenticação entra desde a v1 por questões de privacidade e segurança dos dados (material de estudo pode incluir conteúdo sensível/pessoal).
 
 - Supabase Auth cobre isso nativamente (email/senha é suficiente para o caso de uso; não há necessidade de OAuth social por agora)
 - Sessão persistente no PWA (não pedir login toda hora)
 - RLS já citado acima garante isolamento de dados a nível de banco, preparando o terreno caso o app ganhe mais usuários no futuro
 
-**Cadastro de usuária (decisão revisada):** inicialmente decidimos não ter cadastro público (conta única, criada manualmente via Dashboard). Isso mudou — o MVP vai ser aberto para amigos testarem, então cadastro público (email + senha) entra no escopo agora. Detalhes:
+**Cadastro de usuário (decisão revisada):** inicialmente decidimos não ter cadastro público (conta única, criada manualmente via Dashboard). Isso mudou — o MVP vai ser aberto para amigos testarem, então cadastro público (email + senha) entra no escopo agora. Detalhes:
 - Tela de cadastro simples: email, senha, confirmar senha — mesma política de senha forte já configurada no Supabase
 - Confirmação de email: usar o fluxo padrão do Supabase Auth (email de confirmação antes do primeiro login) — mais seguro contra cadastro com email inválido/de terceiros, aceitável mesmo sendo um passo a mais para quem testar
-- RLS já isola dados por usuária desde o início — abrir para múltiplas contas não exige mudança de schema ou política, já estava preparado para isso
+- RLS já isola dados por usuário desde o início — abrir para múltiplas contas não exige mudança de schema ou política, já estava preparado para isso
 - Sem captcha/proteção anti-bot dedicada por enquanto — volume esperado é baixo (grupo de amigos, não público aberto), o rate-limiting nativo do Supabase Auth contra abuso é suficiente por ora
 
-**Excluir conta (v1):** botão "Excluir conta" no Perfil, logo após "Sair da conta" — vermelho, com ícone de atenção, visualmente distinto como ação destrutiva. Ao clicar, modal de confirmação exige que a usuária digite o próprio email para confirmar (não é só um "tem certeza?" com botão sim/não, reduz clique acidental numa ação irreversível).
+**Excluir conta (v1):** botão "Excluir conta" no Perfil, logo após "Sair da conta" — vermelho, com ícone de atenção, visualmente distinto como ação destrutiva. Ao clicar, modal de confirmação exige que o usuário digite o próprio email para confirmar (não é só um "tem certeza?" com botão sim/não, reduz clique acidental numa ação irreversível).
 
 Implementação — pontos de segurança importantes:
-- Exclusão de usuária do Supabase Auth (`auth.admin.deleteUser`) exige a **secret key**, nunca pode rodar no client — precisa ser uma Server Action/API route no backend
-- Confirmar que todas as tabelas do app (`materials`, `flashcards`, `collections`, `collection_flashcards`, `flashcard_responses`, `user_stats`, `daily_activity`, `badges`) têm `user_id` referenciando `auth.users(id)` com `ON DELETE CASCADE` — se sim, apagar o usuário no Auth já apaga todos os dados dela automaticamente; se as migrations originais não configuraram isso, corrigir antes de expor essa funcionalidade (testar em ambiente de dev com uma conta descartável antes de confiar nisso em produção)
+- Exclusão de usuário do Supabase Auth (`auth.admin.deleteUser`) exige a **secret key**, nunca pode rodar no client — precisa ser uma Server Action/API route no backend
+- Confirmar que todas as tabelas do app (`materials`, `flashcards`, `collections`, `collection_flashcards`, `flashcard_responses`, `user_stats`, `daily_activity`, `badges`) têm `user_id` referenciando `auth.users(id)` com `ON DELETE CASCADE` — se sim, apagar o usuário no Auth já apaga todos os dados dele automaticamente; se as migrations originais não configuraram isso, corrigir antes de expor essa funcionalidade (testar em ambiente de dev com uma conta descartável antes de confiar nisso em produção)
 - Após exclusão bem-sucedida, encerrar a sessão e redirecionar para uma tela de confirmação (não para o login, para não sugerir "faça login de novo" logo após apagar a conta)
 - Ação sem possibilidade de desfazer — deixar isso explícito no texto do modal de confirmação
 
@@ -242,17 +320,38 @@ Implementação — pontos de segurança importantes:
 - **Tema**: dark/light mode via CSS variables, switch persistido
 - **Backend/DB**: Supabase (Postgres + Auth + Storage) com Row Level Security habilitado desde a primeira tabela
 - **Autenticação**: Supabase Auth (email/senha)
-- **IA**: API da Anthropic (Claude) — extração de conteúdo de imagem/PDF via visão nativa do modelo + geração de flashcards via prompt estruturado (output em JSON). Chamadas sempre via backend/Edge Function, nunca do client
-- **Processamento assíncrono**: necessário desde o início (Supabase Edge Functions ou fila simples) para não travar a UI durante geração
+- **IA**: API da Anthropic (Claude) — extração de conteúdo de imagem/PDF via visão nativa do modelo + geração de flashcards via **tool use** (function calling, não parsing de JSON em texto livre — ver "Formato do prompt de geração"). Chamadas sempre via backend/Server Action, nunca do client. Usa `ANTHROPIC_API_KEY` já configurada — mesma chave do projeto, sem chave nova necessária
+- **Processamento assíncrono**: necessário desde o início (Supabase Edge Functions ou fila simples) para não travar a UI durante geração — ver nota sobre limite de duração da Vercel abaixo
+
+### Dependências novas para o pipeline de IA
+
+| Pacote | Uso |
+|---|---|
+| `@anthropic-ai/sdk` | Cliente oficial da Anthropic — primeira integração de IA de verdade no código (tudo antes disso foi CSV) |
+| `pdf-parse` | Extração de texto de PDF nativo (não escaneado) |
+| `mammoth` | Extração de texto de `.docx` (já era decisão prévia) |
+| `jszip` + `fast-xml-parser` | Extração de texto de `.pptx` (PowerPoint é um zip de XMLs por slide) — preferido a um pacote específico de PowerPoint, mais controle e menos risco de dependência mal mantida |
+
+### Supabase Storage — bucket pendente de criação
+
+Os arquivos de material (PDF/imagem/Word/PPT) enviados precisam de um bucket dedicado no Supabase Storage — ainda não criado. Necessário: criar bucket (ex: `materiais`) via Dashboard → Storage, configurar políticas de acesso (RLS de Storage — diferente de RLS de tabela) para cada usuário só acessar os próprios arquivos.
+
+### Limite de duração de função serverless (Vercel Hobby) — afeta a arquitetura
+
+O plano Hobby da Vercel tem limite curto de duração por invocação de função (historicamente 10s por padrão). Extração de PDF grande + chamada de geração via IA pode facilmente ultrapassar isso. Isso não é só "não travar a UI" (requisito de UX) — é um requisito de arquitetura real: processar em pedaços pequenos o suficiente para caber no limite, ou usar padrão de job assíncrono (inicia o processamento, retorna na hora, cliente consulta status depois) em vez de uma chamada única que faz tudo. Verificar o limite atual no dashboard da Vercel antes de implementar, já que pode mudar.
 
 ## Notas técnicas por tipo de arquivo
 
 | Formato | Extração | Observação |
 |---|---|---|
 | PDF (texto) | Extração direta de texto | Caso mais simples |
-| PDF escaneado / imagem | Visão da IA (Claude lê a imagem diretamente) | Sem necessidade de OCR tradicional |
+| PDF escaneado / imagem | Visão da IA (Claude lê o PDF nativamente como documento, sem precisar converter página por página em imagem) | Sem necessidade de OCR tradicional |
 | Word (.docx) | Biblioteca de extração de texto (ex: mammoth) | Simples |
 | PowerPoint (.pptx) | Extração de texto por slide | Cada slide como bloco de conteúdo ajuda a IA a entender a estrutura |
+
+**Limite da API do Claude para PDF**: 100 páginas e 32 MB por requisição (visão nativa de documento). Materiais que excedam isso precisam ser divididos em múltiplas requisições antes de enviar — não implementar isso preventivamente, só quando um material real expuser a necessidade (a maioria dos materiais de estudo fica bem abaixo desse limite).
+
+**Detecção de fallback texto→visão (correção de bug real)**: a checagem de "texto vazio/curto demais" (que decide se cai pro fallback de visão) precisa considerar a **densidade média de caracteres por página**, não o tamanho total do documento. Um PDF de 83 páginas todo em imagem, sem camada de texto, ainda gera ~1300 caracteres de marcadores de página quando extraído via `pdf-parse` — total "não vazio" o suficiente pra escapar de uma checagem ingênua de tamanho total, mas a média (~16 caracteres/página) deixa claro que não há texto real. Calcular `caracteres_totais / número_de_páginas` e comparar contra um limiar razoável (ex: menos de 100 caracteres/página é sinal de PDF escaneado sem texto).
 
 Necessário um dispatcher simples que identifica o tipo de arquivo e chama o extrator correspondente antes de enviar o conteúdo para geração de flashcards.
 
@@ -267,13 +366,17 @@ Diferente do upload de material (PDF/imagem/Word/PowerPoint), que passa pelo pip
 3. Linhas incompletas são puladas e contabilizadas para o resumo final, não interrompem a importação
 4. Cards importados seguem a mesma lógica de destino (coleção existente/nova/sem coleção) e o mesmo modelo de dados dos demais flashcards — na tabela `flashcards`, o campo de origem pode indicar `material_id = null` e um campo `origem: "csv" | "ia" | "manual"` para rastreabilidade
 5. Processamento pode ser síncrono (sem fila), já que não depende de IA e CSVs de flashcards tendem a ser pequenos (algumas centenas de linhas no máximo)
-6. **Botão "Baixar modelo"**: disponibilizar um CSV de exemplo para download na própria tela de importação (cabeçalho `frente,verso` + 1-2 linhas de exemplo), para reduzir erro de formatação por parte da usuária
+6. **Botão "Baixar modelo"**: disponibilizar um CSV de exemplo para download na própria tela de importação (cabeçalho `frente,verso` + 1-2 linhas de exemplo), para reduzir erro de formatação por parte do usuário
 
 ## Limites de arquivo (upload)
 
 - Material para geração via IA (PDF, imagem, Word, PowerPoint): **até 20 MB** por arquivo
 - CSV para importação: **até 5 MB**
 - Validação de tamanho no client (feedback imediato) e no server (proteção real) — consistente com o item de segurança já registrado sobre validação de tipo/tamanho de upload
+- **Arquitetura de upload (decisão final, após investigação)**: `bodySizeLimit` sozinho não resolve — investigação encontrou um problema mais fundamental: arquivos acima de ~10MB quebram o parser nativo de `FormData` do Node/undici usado por Server Actions e por API Routes igualmente (`TypeError: Failed to parse body as FormData`), não é limitação configurável, é do runtime. **Upload de arquivo nunca deve passar pelo servidor Next.js.** Arquitetura correta: **upload direto do client para o Supabase Storage** (browser autenticado sobe o arquivo direto no bucket `materiais`, respeitando as políticas de RLS de Storage já configuradas via `auth.uid()`). O servidor só recebe `storage_path` + metadados (nome, tipo, tamanho) depois do upload concluído — payload pequeno, nunca esbarra em limite de body. A extração é disparada a partir desse `storage_path`, buscando o arquivo do Storage, não recebendo bytes na requisição. `bodySizeLimit: '25mb'` continua configurado (não faz mal deixar), mas não é mais a peça central da solução.
+- **Status "processando" preso indefinidamente (risco real do limite de duração)**: se a extração ultrapassar o limite de duração de função da Vercel, a execução é encerrada à força pela plataforma — não é uma exceção capturável pelo código, então o material nunca recebe status "erro", fica preso em "processando" para sempre. **Correção de premissa importante**: `after()` não estende o limite de duração — só adia o processamento para depois da resposta HTTP ser enviada, mas a invocação da função continua consumindo do mesmo orçamento de tempo até o `after()` terminar, não é um mecanismo de "escapar" do limite.
+- **Processamento de PDF de imagem em lotes de páginas (decisão: implementar, não adiar)**: diagnóstico real mostrou que uma chamada de visão para um PDF denso de até 100 páginas pode facilmente passar de 200-300s, risco genuíno de estourar o limite de duração da função mesmo em plataformas com limite maior (300s). Solução: processar em lotes menores por chamada de visão (ex: 20-25 páginas por requisição), concatenando os resultados — limita o tempo de qualquer chamada individual a uma janela previsível, e como efeito colateral positivo já deixa o código preparado para eventualmente suportar material acima de 100 páginas (mesmo mecanismo de lote). Declarar `export const maxDuration` explicitamente na rota/action responsável, em vez de depender do default implícito da plataforma.
+- Mensagens de erro claras e específicas por tipo de falha (limite de páginas excedido, timeout, erro de API, arquivo corrompido) devem sempre ser persistidas em `materials.erro_mensagem` e exibidas de forma legível na UI, nunca um "erro genérico" sem contexto.
 
 ## Modelo de dados (simplificado)
 
@@ -284,7 +387,7 @@ users
   └── collections (nome, criada pelo usuário)
         └── collection_flashcards (tabela de junção — many-to-many)
   └── flashcard_responses (flashcard_id, acertou: boolean, rating: 0-3 | null, respondido_em)
-  └── flashcard_schedule (flashcard_id, repetitions, interval_days, ease_factor, due_date, atualizado_em) — estado do SM-2 por card+usuária, 1 linha por par
+  └── flashcard_schedule (flashcard_id, repetitions, interval_days, ease_factor, due_date, atualizado_em) — estado do SM-2 por card+usuário, 1 linha por par
   └── user_stats (streak_atual, streak_recorde, meta_diaria_cards, cards_estudados_hoje, ultima_atividade_em)
   └── daily_activity (data, cards_revisados, meta_atingida: boolean) — usado para montar o calendário semanal da home
   └── badges (tipo, atingido_em, meta_alvo) — ex: "50 cards revisados", "7 dias de ofensiva"

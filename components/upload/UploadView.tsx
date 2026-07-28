@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, type CSSProperties } from 'react'
+import Link from 'next/link'
 import { FileSpreadsheet, Sparkles, Upload as UploadIcon } from 'lucide-react'
 import type { CollectionOption } from '@/lib/collections-data'
 import { CsvImportTab } from '@/components/upload/CsvImportTab'
@@ -109,6 +110,9 @@ function IaComingSoon() {
       <div className="text-center text-xs mt-2.5" style={{ color: 'var(--muted)' }}>
         Geração via IA ainda não está disponível — em breve.
       </div>
+      <Link href="/upload/debug" className="block text-center text-xs mt-3 underline" style={{ color: 'var(--muted)' }}>
+        Debug: testar extração de conteúdo →
+      </Link>
     </>
   )
 }
