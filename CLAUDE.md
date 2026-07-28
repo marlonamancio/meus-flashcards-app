@@ -382,7 +382,7 @@ Diferente do upload de material (PDF/imagem/Word/PowerPoint), que passa pelo pip
 
 ```
 users
-  └── materials (arquivo original, tipo, status: processando/pronto)
+  └── materials (arquivo original, tipo, status: processando/pronto/gerando/aguardando_revisao/erro, conteudo_extraido, erro_mensagem, tema, modo: "arquivo" | "tema", cards_gerados)
         └── flashcards (frente, verso, material_id de origem, origem: "ia" | "csv" | "manual")
   └── collections (nome, criada pelo usuário)
         └── collection_flashcards (tabela de junção — many-to-many)
@@ -392,6 +392,12 @@ users
   └── daily_activity (data, cards_revisados, meta_atingida: boolean) — usado para montar o calendário semanal da home
   └── badges (tipo, atingido_em, meta_alvo) — ex: "50 cards revisados", "7 dias de ofensiva"
 ```
+
+**Campos novos em `materials` para o pipeline de geração (Estágio 2)**:
+- `modo` ("arquivo" | "tema"): distingue as duas origens de geração. Modo "tema" cria uma linha em `materials` mesmo sem arquivo (reaproveita a mesma máquina de estado/status em vez de um sistema paralelo) — `arquivo_path`/`storage_path` fica null nesse caso.
+- `tema` (text, nullable): texto livre informado pela usuária, preenchido só quando `modo = "tema"`.
+- `cards_gerados` (JSONB, nullable): array de `{frente, verso}` gerados pela IA, **antes** da revisão/edição da usuária — é o resultado bruto da geração, ainda não persistido em `flashcards`. Só migra para a tabela `flashcards` de verdade depois que a usuária revisar e confirmar salvar (Estágio 3).
+- `status` ganha dois valores novos: `gerando` (chamada à IA em andamento) e `aguardando_revisao` (cards gerados, esperando a usuária revisar antes de salvar). Fluxo completo: `processando` (extração) → `pronto` (extração ok, ou direto pra "tema" sem extração) → `gerando` (chamando IA) → `aguardando_revisao` (pronta pra tela de revisão) → depois de salvar, os cards migram pra `flashcards` de verdade (o material em si pode ficar como está, já cumpriu o papel).
 
 **`flashcard_responses.rating`**: novo campo (0-3, nullable), preenchido só a partir da introdução do SM-2 — respostas antigas (antes dessa mudança) ficam com `rating = null`, mantendo `acertou` (boolean) como estava, sem migração retroativa (decisão explícita, ver item 6). `rating` alimenta exclusivamente o cálculo do SM-2 em `flashcard_schedule`; `acertou` continua alimentando os cálculos de taxa de acerto/progresso já validados, sem mudança.
 
