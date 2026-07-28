@@ -37,6 +37,16 @@ const MAX_VISION_BYTES = 32 * 1024 * 1024
 // rewrite of the batching itself.
 const VISION_BATCH_SIZE = 25
 
+// Batches run in parallel (bounded), not sequentially — a 100-page material split into 4
+// sequential batches at ~90s worst case each sums to 360s, already over the 300s Vercel Hobby
+// ceiling (see CLAUDE.md "Limite de duração de função serverless"). In parallel, total wall time
+// is roughly the slowest batch, not the sum of all of them. The cap (not unlimited concurrency)
+// is a guard against bursting the Anthropic account's per-minute rate limit when a material has
+// many batches; the SDK already retries individual 429/5xx responses with backoff by default
+// (Anthropic()'s maxRetries, default 2), so this only needs to bound how many requests are ever
+// in flight together, not reimplement retry logic itself.
+const MAX_CONCURRENT_VISION_BATCHES = 3
+
 async function splitPdfIntoBatches(buffer: Buffer, batchSize: number): Promise<Buffer[]> {
   const sourceDoc = await PDFDocument.load(buffer)
   const totalPages = sourceDoc.getPageCount()
@@ -55,30 +65,64 @@ async function splitPdfIntoBatches(buffer: Buffer, batchSize: number): Promise<B
   return batches
 }
 
+// Small worker-pool runner instead of Promise.all: caps how many `tasks` are in flight at once
+// (see MAX_CONCURRENT_VISION_BATCHES) while still running everything that fits concurrently.
+// Results land at their original index regardless of finishing order, so callers never need to
+// re-sort — task N's outcome is always outcomes[N].
+async function runWithConcurrencyLimit<T>(tasks: Array<() => Promise<T>>, limit: number): Promise<PromiseSettledResult<T>[]> {
+  const outcomes: PromiseSettledResult<T>[] = new Array(tasks.length)
+  let nextIndex = 0
+
+  async function worker() {
+    while (nextIndex < tasks.length) {
+      const current = nextIndex++
+      try {
+        outcomes[current] = { status: 'fulfilled', value: await tasks[current]() }
+      } catch (reason) {
+        outcomes[current] = { status: 'rejected', reason }
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(limit, tasks.length) }, worker))
+  return outcomes
+}
+
 // A batch failing (API error, malformed sub-PDF, etc.) fails the whole material rather than
 // keeping the batches that already succeeded: a partially-transcribed material would look
 // complete to Stage 2's flashcard generation later, with nothing signaling that pages are
-// missing. Failing loud — with the exact page range and batch that broke — is simpler to reason
-// about and lets the user just retry the upload; the alternative (persisting partial content,
-// tracking which ranges are missing, surfacing that in the UI) is real complexity this stage
-// doesn't need yet.
+// missing. Failing loud — with the exact page range(s) and batch(es) that broke — is simpler to
+// reason about and lets the user just retry the upload; the alternative (persisting partial
+// content, tracking which ranges are missing, surfacing that in the UI) is real complexity this
+// stage doesn't need yet. Running in parallel doesn't change that decision, just how failures are
+// collected: allSettled-style outcomes so one batch's rejection can't hide another's.
 async function extractPdfViaVisionBatches(buffer: Buffer, pageCount: number): Promise<string> {
   const batches = await splitPdfIntoBatches(buffer, VISION_BATCH_SIZE)
+
+  const outcomes = await runWithConcurrencyLimit(
+    batches.map((batch, i) => () => extractTextFromPdfVision(batch.toString('base64'), i * VISION_BATCH_SIZE + 1)),
+    MAX_CONCURRENT_VISION_BATCHES
+  )
+
+  const failures: string[] = []
   const results: string[] = []
 
-  for (let i = 0; i < batches.length; i++) {
+  // outcomes is in original batch order (index-addressed, not push-on-completion), so results —
+  // appended in this same forEach pass — comes out in page order (1-25, 26-50, ...) regardless
+  // of which batch actually finished first.
+  outcomes.forEach((outcome, i) => {
+    if (outcome.status === 'fulfilled') {
+      results.push(outcome.value.trim())
+      return
+    }
     const firstPage = i * VISION_BATCH_SIZE + 1
     const lastPage = Math.min(firstPage + VISION_BATCH_SIZE - 1, pageCount)
-    try {
-      const text = await extractTextFromPdfVision(batches[i].toString('base64'), firstPage)
-      results.push(text.trim())
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err)
-      throw new Error(
-        `Falha ao extrair via visão o lote de páginas ${firstPage}-${lastPage} de ${pageCount} ` +
-          `(lote ${i + 1}/${batches.length}): ${reason}`
-      )
-    }
+    const reason = outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason)
+    failures.push(`páginas ${firstPage}-${lastPage}, lote ${i + 1}/${batches.length}: ${reason}`)
+  })
+
+  if (failures.length > 0) {
+    throw new Error(`Falha ao extrair via visão ${failures.length} de ${batches.length} lote(s) — ${failures.join('; ')}`)
   }
 
   return results.join('\n\n')
