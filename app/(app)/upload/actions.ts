@@ -5,6 +5,7 @@ import { after } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireUser } from '@/lib/supabase/require-user'
 import { extractContent, materialTipoFromFile } from '@/lib/extraction'
+import { generateFlashcardsFromMaterial, generateFlashcardsFromTheme, type Quantidade } from '@/lib/generation'
 
 const MAX_CSV_BYTES = 5 * 1024 * 1024
 const MATERIALS_BUCKET = 'materiais'
@@ -248,6 +249,100 @@ export async function registerMaterialAction(input: RegisterMaterialInput): Prom
       await supabase
         .from('materials')
         .update({ status: 'erro', erro_mensagem: err instanceof Error ? err.message : 'Erro desconhecido na extração.' })
+        .eq('id', materialId)
+    }
+  })
+
+  return { ok: true, materialId }
+}
+
+export type GenerateResult = { ok: true; materialId: string } | { ok: false; error: string }
+
+// Kicks off generation for a material Stage 1 already extracted (status 'pronto', with
+// conteudo_extraido filled in). Returns immediately and runs the actual generation call in
+// after() — same reasoning as registerMaterialAction: an AI call can take a while, and the
+// request must not block on it. See CLAUDE.md "Limite de duração de função serverless".
+export async function generateFromMaterialAction(materialId: string, quantidade: Quantidade): Promise<GenerateResult> {
+  const supabase = await createClient()
+  const user = await requireUser(supabase)
+
+  const { data: material, error: fetchError } = await supabase
+    .from('materials')
+    .select('id, status, conteudo_extraido')
+    .eq('id', materialId)
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (fetchError || !material) {
+    return { ok: false, error: 'Material não encontrado.' }
+  }
+  if (material.status !== 'pronto') {
+    return { ok: false, error: `Material precisa estar com status "pronto" para gerar flashcards (está "${material.status}").` }
+  }
+
+  const chunks = material.conteudo_extraido as string[] | null
+  if (!chunks || chunks.length === 0) {
+    return { ok: false, error: 'Material não tem conteúdo extraído.' }
+  }
+
+  const { error: updateError } = await supabase.from('materials').update({ status: 'gerando' }).eq('id', materialId)
+  if (updateError) {
+    return { ok: false, error: 'Não foi possível iniciar a geração.' }
+  }
+
+  after(async () => {
+    try {
+      const cards = await generateFlashcardsFromMaterial(chunks, quantidade)
+      await supabase.from('materials').update({ status: 'aguardando_revisao', cards_gerados: cards }).eq('id', materialId)
+    } catch (err) {
+      await supabase
+        .from('materials')
+        .update({ status: 'erro', erro_mensagem: err instanceof Error ? err.message : 'Erro desconhecido na geração.' })
+        .eq('id', materialId)
+    }
+  })
+
+  return { ok: true, materialId }
+}
+
+// Theme mode has no upload/extraction step — the material row is created here directly. Status
+// starts at 'pronto' (meaning "no extraction needed, ready to generate") before immediately
+// moving to 'gerando', reusing the same state machine as file mode instead of a parallel one —
+// see CLAUDE.md "Campos novos em materials para o pipeline de geração".
+export async function generateFromThemeAction(tema: string, quantidade: Quantidade): Promise<GenerateResult> {
+  const supabase = await createClient()
+  const user = await requireUser(supabase)
+
+  const trimmedTema = tema.trim()
+  if (!trimmedTema) {
+    return { ok: false, error: 'Descreva um tema.' }
+  }
+
+  const { data: material, error: insertError } = await supabase
+    .from('materials')
+    .insert({ user_id: user.id, nome: trimmedTema, modo: 'tema', tema: trimmedTema, tipo: null, status: 'pronto' })
+    .select('id')
+    .single()
+
+  if (insertError || !material) {
+    return { ok: false, error: 'Não foi possível registrar o tema.' }
+  }
+
+  const materialId = material.id as string
+
+  const { error: updateError } = await supabase.from('materials').update({ status: 'gerando' }).eq('id', materialId)
+  if (updateError) {
+    return { ok: false, error: 'Não foi possível iniciar a geração.' }
+  }
+
+  after(async () => {
+    try {
+      const cards = await generateFlashcardsFromTheme(trimmedTema, quantidade)
+      await supabase.from('materials').update({ status: 'aguardando_revisao', cards_gerados: cards }).eq('id', materialId)
+    } catch (err) {
+      await supabase
+        .from('materials')
+        .update({ status: 'erro', erro_mensagem: err instanceof Error ? err.message : 'Erro desconhecido na geração.' })
         .eq('id', materialId)
     }
   })

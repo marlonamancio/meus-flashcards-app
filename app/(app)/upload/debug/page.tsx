@@ -3,6 +3,7 @@ import { requireUser } from '@/lib/supabase/require-user'
 import { AppShell } from '@/components/layout/AppShell'
 import { BackHeader } from '@/components/layout/BackHeader'
 import { ExtractionDebug } from '@/components/upload/ExtractionDebug'
+import { ThemeGenerationDebug } from '@/components/upload/ThemeGenerationDebug'
 
 // Server Actions inherit maxDuration from the page that invokes them, not from the action's own
 // file (Next.js docs: "set the maxDuration at the page level to change the default timeout of
@@ -16,8 +17,9 @@ import { ExtractionDebug } from '@/components/upload/ExtractionDebug'
 // "Enviar arquivo" flow once this debug page is retired.
 export const maxDuration = 300
 
-// Temporary route for Stage 1 (extração de conteúdo) — remove once Stage 2 (geração via IA)
-// ships the real "Enviar arquivo" flow inside UploadView.
+// Temporary route for Stage 1 (extração) e Stage 2 (geração via IA) — remove/oculte quando a UI
+// real (UploadView) cobrir tudo isso e o app for usado por mais gente além do desenvolvedor (ver
+// CLAUDE.md "Nota de implementação — tela de debug temporária").
 export default async function UploadDebugPage() {
   const supabase = await createClient()
   const user = await requireUser(supabase)
@@ -25,6 +27,7 @@ export default async function UploadDebugPage() {
   return (
     <AppShell header={<BackHeader title="Debug de extração" backHref="/upload" />}>
       <ExtractionDebug userId={user.id} />
+      <ThemeGenerationDebug />
     </AppShell>
   )
 }

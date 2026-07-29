@@ -1,6 +1,7 @@
 import { PDFParse } from 'pdf-parse'
 import { getData } from 'pdf-parse/worker'
 import { PDFDocument } from 'pdf-lib'
+import { runWithConcurrencyLimit } from '@/lib/concurrency'
 import { extractTextFromPdfVision } from './claude-vision'
 import type { ExtractionMethod } from './types'
 
@@ -63,29 +64,6 @@ async function splitPdfIntoBatches(buffer: Buffer, batchSize: number): Promise<B
   }
 
   return batches
-}
-
-// Small worker-pool runner instead of Promise.all: caps how many `tasks` are in flight at once
-// (see MAX_CONCURRENT_VISION_BATCHES) while still running everything that fits concurrently.
-// Results land at their original index regardless of finishing order, so callers never need to
-// re-sort — task N's outcome is always outcomes[N].
-async function runWithConcurrencyLimit<T>(tasks: Array<() => Promise<T>>, limit: number): Promise<PromiseSettledResult<T>[]> {
-  const outcomes: PromiseSettledResult<T>[] = new Array(tasks.length)
-  let nextIndex = 0
-
-  async function worker() {
-    while (nextIndex < tasks.length) {
-      const current = nextIndex++
-      try {
-        outcomes[current] = { status: 'fulfilled', value: await tasks[current]() }
-      } catch (reason) {
-        outcomes[current] = { status: 'rejected', reason }
-      }
-    }
-  }
-
-  await Promise.all(Array.from({ length: Math.min(limit, tasks.length) }, worker))
-  return outcomes
 }
 
 // A batch failing (API error, malformed sub-PDF, etc.) fails the whole material rather than

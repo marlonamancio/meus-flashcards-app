@@ -171,6 +171,10 @@ Telas de Login, Coleção individual, Coleções, Progresso e Perfil revisadas e
 
 ### Novo material (upload) — duas abas, três formas de gerar
 
+**Hierarquia visual (ajuste pós-implementação)**: os dois níveis de escolha (aba principal "Gerar com IA"/"Importar CSV" vs. origem dentro dela "Enviar arquivo"/"Descrever um tema") não devem ter o mesmo peso visual — o segundo nível é subordinado ao primeiro, e deve parecer visualmente mais leve/secundário (chips menores, borda mais fina, sem o preenchimento sólido das abas principais), com um rótulo pequeno acima (ex: "Origem do conteúdo") reforçando a hierarquia pelo texto também, não só pelo estilo.
+
+**Status de processamento (ajuste pós-implementação)**: mensagens como "Gerando flashcards com IA..." precisam de mais destaque visual — reaproveitar o padrão do componente `Alert` já existente (fundo colorido, ícone, contraste de texto), usando a cor de destaque `--accent` (não `--bad`, já que não é erro). Como sabemos por teste real que geração pode levar até ~110s em material grande, a mensagem deve gerenciar expectativa explicitamente (ex: "Gerando flashcards — pode levar até 2 minutos para materiais grandes"), não só indicar "carregando" de forma genérica.
+
 **Nota de implementação — tela de debug temporária**: `/upload/debug` foi criada durante o desenvolvimento do pipeline de extração (Estágio 1) para testar upload + polling de status + preview do conteúdo extraído, sem depender da UI final. É **ferramenta de desenvolvimento, não parte do produto** — precisa ser removida ou ocultada antes do app ser usado por outras pessoas além do desenvolvedor (antes de divulgar novas funcionalidades para os amigos testando), senão vira uma porta lateral estranha na experiência final e uma forma de gastar a API key sem os controles da UI de verdade. Não esquecer de remover ao final do Estágio 3.
 
 - **Aba "Gerar com IA"**: dentro dela, o usuário escolhe entre duas origens de conteúdo (não são abas novas, é uma escolha dentro da mesma aba):
@@ -206,20 +210,44 @@ tools: [{
 tool_choice: { type: "tool", name: "criar_flashcards" }
 ```
 
-**Prompt base (instrução do sistema)**:
+**Prompt base (instrução do sistema) — revisado após teste real com material denso**:
 ```
 Você é um assistente especializado em criar flashcards de estudo eficazes 
 para concursos públicos brasileiros.
 
-Diretrizes:
+O objetivo é ensinar CONCEITOS E REGRAS da matéria, não testar conhecimento 
+sobre o documento em si. Aplique estas diretrizes rigorosamente:
+
+EXCLUIR COMPLETAMENTE (nunca gerar cards sobre):
+- Metadados do documento: autor, data de produção/publicação, número total 
+  de páginas, estrutura do sumário/índice, em qual página um tópico começa
+- Citação ou paráfrase de uma questão de prova específica do material (ex: 
+  "Na questão do CEBRASPE/X/ano, por que a alternativa Y está correta?") — 
+  extraia a REGRA OU CONCEITO geral testado pela questão, nunca o enunciado 
+  da questão em si, o nome da banca, ou o ano do concurso
+- Referências a "o texto", "o material", "o autor menciona" — o flashcard 
+  deve ser sobre a matéria, como se fosse extraído de um livro didático, 
+  não sobre o documento fonte
+
+CONSOLIDAR EM VEZ DE REPETIR:
+- Se o mesmo conceito/regra aparece testado várias vezes no material (comum 
+  em apostilas de concurso, que repetem a mesma regra gramatical/jurídica 
+  via dezenas de questões de banca diferentes), gere UM ÚNICO flashcard 
+  canônico sobre essa regra — nunca um card por questão de banca que a 
+  testa. Isso é o erro mais comum a evitar: múltiplos cards quase idênticos 
+  sobre a mesma regra, cada um citando um exemplo/questão diferente.
+- Prefira cards que testam APLICAÇÃO de um conceito ("por que a palavra X 
+  segue a regra Y?") a cards de "cite exemplos de X" (memorização de lista, 
+  menor valor de recordação)
+
+QUALIDADE POR CIMA DE QUANTIDADE:
 - Cada flashcard testa um único conceito ou fato (atomicidade)
 - Perguntas claras e diretas, sem ambiguidade
 - Respostas concisas mas completas
 - Evite perguntas triviais demais ou fáceis demais a ponto de não exigir 
   recordação real
-- Evite duplicar o mesmo conceito em cards diferentes
 - Preserve com precisão números de artigo de lei, datas e nomes próprios 
-  quando mencionados no conteúdo de origem
+  quando forem parte do CONTEÚDO da matéria (não do documento em si)
 - Responda chamando a ferramenta criar_flashcards, sem texto adicional
 ```
 
@@ -228,9 +256,13 @@ Diretrizes:
 - **Modo arquivo**: `"Gere flashcards EXCLUSIVAMENTE a partir do conteúdo abaixo. Não adicione informação externa ao que está no texto, mesmo que você 'saiba' mais sobre o assunto — a fonte de verdade é o material fornecido pelo usuário."` + conteúdo extraído
 - **Modo tema livre**: `"Gere flashcards sobre o tema abaixo, usando seu conhecimento. Priorize precisão factual: se não tiver certeza absoluta de um número de artigo de lei, data específica ou dado exato, prefira formular a pergunta de forma mais conceitual em vez de arriscar um número impreciso."` + tema informado
 
-**Quantidade**: `"Gere quantos flashcards forem necessários para cobrir os conceitos-chave, evitando repetição e trivialidade — normalmente entre 5 e 40, dependendo da densidade"` (automático) ou `"Gere exatamente {N} flashcards cobrindo os conceitos mais importantes"` (manual).
+**Quantidade (revisado — o valor anterior gerou 702 cards de baixa qualidade num teste real)**: `"Gere flashcards cobrindo os CONCEITOS distintos do material, não uma pergunta por ocorrência/exemplo/questão de banca. Um material denso mas repetitivo (mesma regra testada de várias formas) deve gerar poucas dezenas de cards consolidados, não centenas. Normalmente entre 15 e 60 cards por material, mesmo que o conteúdo bruto seja extenso — priorize qualidade e consolidação sobre volume"` (automático) ou `"Gere exatamente {N} flashcards cobrindo os conceitos mais importantes"` (manual).
 
-**Limitação aceita para v1**: chunking de materiais grandes pode gerar cards levemente repetidos entre pedaços diferentes — não implementar deduplicação automática agora, a etapa de revisão antes de salvar já cobre isso.
+**Risco arquitetural a observar**: como materiais grandes são processados em chunks paralelos (cada chunk gerando cards independentemente), a explosão de quantidade pode vir da soma de vários chunks gerando o teto superior cada um, não só do prompt em si — se o refinamento acima não for suficiente sozinho, considerar reduzir a meta de cards por chunk proporcionalmente ao número de chunks, ou adicionar uma etapa de deduplicação entre chunks antes de apresentar para revisão.
+
+**Limitação aceita para v1**: chunking de materiais grandes pode gerar cards levemente repetidos entre pedaços diferentes — não implementar deduplicação automática agora, a etapa de revisão antes de salvar já cobre isso (mas o prompt revisado acima deve reduzir drasticamente a ocorrência).
+
+**Nota de custo (caso real observado)**: um material de 130 páginas, denso e repetitivo, custou $1,29 na geração antes deste refinamento — vale reavaliar o custo real após o ajuste do prompt, e considerar isso ao planejar divulgação para mais usuários.
 
 ### Pipeline de sanitização do conteúdo extraído (extensível)
 
@@ -338,11 +370,7 @@ Os arquivos de material (PDF/imagem/Word/PPT) enviados precisam de um bucket ded
 
 ### Limite de duração de função serverless (Vercel Hobby) — afeta a arquitetura
 
-**Confirmado (não é mais estimativa)**: o plano Hobby da Vercel rejeita o build se `maxDuration` declarado exceder **300s** — mensagem exata do erro: `"Serverless Functions must have a maxDuration between 1 and 300 for plan hobby"`. Isso já causou uma falha de build real neste projeto (`maxDuration = 600` em `app/(app)/upload/debug/page.tsx`, corrigido para `300`, o teto real do plano). 300 é hoje o teto rígido, não um valor configurável mais alto — só sobe migrando de plano (Pro permite mais).
-
-Extração de PDF grande + chamada de geração via IA pode facilmente ultrapassar isso numa chamada única. Isso não é só "não travar a UI" (requisito de UX) — é um requisito de arquitetura real: processar em pedaços pequenos o suficiente para caber no limite (ver "Processamento de PDF de imagem em lotes de páginas" abaixo), ou usar padrão de job assíncrono (inicia o processamento, retorna na hora, cliente consulta status depois) em vez de uma chamada única que faz tudo.
-
-**Risco residual resolvido — lotes rodam em paralelo, não mais sequenciais** (ver "Processamento de PDF de imagem em lotes de páginas" abaixo): com lotes sequenciais, um material de 100 páginas no pior caso (4 lotes × até 90s) somava até 360s — já estourava os 300s do Hobby, mesmo com o batching. Trocado para execução em paralelo com no máximo 3 chamadas simultâneas (`runWithConcurrencyLimit` em `lib/extraction/pdf.ts`): o tempo total deixa de ser a *soma* dos lotes e passa a ser aproximadamente o tempo do lote mais lento (mais uma "onda" extra no pior caso, já que 4 lotes com limite de 3 significa que o 4º só começa quando um dos 3 primeiros termina). Pior caso reestimado: ~2 lotes densos em sequência (~180s no cenário mais pessimista de 90s/lote), contra o teto de 300s — folga real de ~120s, não mais um estouro garantido. Medição real (83 páginas, densidade moderada): caiu de ~51-55s (sequencial) para ~23s (paralelo).
+O plano Hobby da Vercel tem limite curto de duração por invocação de função (historicamente 10s por padrão). Extração de PDF grande + chamada de geração via IA pode facilmente ultrapassar isso. Isso não é só "não travar a UI" (requisito de UX) — é um requisito de arquitetura real: processar em pedaços pequenos o suficiente para caber no limite, ou usar padrão de job assíncrono (inicia o processamento, retorna na hora, cliente consulta status depois) em vez de uma chamada única que faz tudo. Verificar o limite atual no dashboard da Vercel antes de implementar, já que pode mudar.
 
 ## Notas técnicas por tipo de arquivo
 
@@ -379,7 +407,7 @@ Diferente do upload de material (PDF/imagem/Word/PowerPoint), que passa pelo pip
 - Validação de tamanho no client (feedback imediato) e no server (proteção real) — consistente com o item de segurança já registrado sobre validação de tipo/tamanho de upload
 - **Arquitetura de upload (decisão final, após investigação)**: `bodySizeLimit` sozinho não resolve — investigação encontrou um problema mais fundamental: arquivos acima de ~10MB quebram o parser nativo de `FormData` do Node/undici usado por Server Actions e por API Routes igualmente (`TypeError: Failed to parse body as FormData`), não é limitação configurável, é do runtime. **Upload de arquivo nunca deve passar pelo servidor Next.js.** Arquitetura correta: **upload direto do client para o Supabase Storage** (browser autenticado sobe o arquivo direto no bucket `materiais`, respeitando as políticas de RLS de Storage já configuradas via `auth.uid()`). O servidor só recebe `storage_path` + metadados (nome, tipo, tamanho) depois do upload concluído — payload pequeno, nunca esbarra em limite de body. A extração é disparada a partir desse `storage_path`, buscando o arquivo do Storage, não recebendo bytes na requisição. `bodySizeLimit: '25mb'` continua configurado (não faz mal deixar), mas não é mais a peça central da solução.
 - **Status "processando" preso indefinidamente (risco real do limite de duração)**: se a extração ultrapassar o limite de duração de função da Vercel, a execução é encerrada à força pela plataforma — não é uma exceção capturável pelo código, então o material nunca recebe status "erro", fica preso em "processando" para sempre. **Correção de premissa importante**: `after()` não estende o limite de duração — só adia o processamento para depois da resposta HTTP ser enviada, mas a invocação da função continua consumindo do mesmo orçamento de tempo até o `after()` terminar, não é um mecanismo de "escapar" do limite.
-- **Processamento de PDF de imagem em lotes de páginas, em PARALELO (decisão: implementar, não adiar)**: diagnóstico real mostrou que uma chamada de visão para um PDF denso de até 100 páginas pode facilmente passar de 200-300s, risco genuíno de estourar o limite de duração da função — que hoje é **300s confirmado no Hobby** (não uma estimativa, ver "Limite de duração de função serverless" acima), então esse risco é concreto, não hipotético. Solução: processar em lotes menores por chamada de visão (ex: 20-25 páginas por requisição), **disparados em paralelo** (não sequenciais — os lotes são independentes, sem motivo pra serializar), concatenando os resultados na ordem correta de página ao final. Concorrência limitada a no máximo 3 chamadas simultâneas (`runWithConcurrencyLimit` em `lib/extraction/pdf.ts`), não ilimitada — proteção contra rate limit da conta Anthropic ao disparar vários lotes de uma vez; o SDK já reexecuta 429/5xx automaticamente com backoff (`maxRetries` padrão 2), então isso só precisa limitar quantas requisições ficam em voo ao mesmo tempo, não reimplementar retry. Falha de um lote (via `Promise.allSettled`, não `Promise.all`) não derruba silenciosamente os outros nem trava a concorrência — todos os lotes ainda em andamento terminam normalmente, e o material só falha por completo ao final se qualquer lote tiver falhado, com a mensagem citando exatamente qual(is). Como efeito colateral positivo, o mecanismo de lote já deixa o código preparado para eventualmente suportar material acima de 100 páginas. Declarar `export const maxDuration` explicitamente na rota/action responsável (teto real: 300 no Hobby), em vez de depender do default implícito da plataforma. **Pior caso reestimado após paralelização**: ~180s (2 "ondas" de lotes densos no cenário mais pessimista, já que 4 lotes com limite de concorrência 3 pode exigir uma leva extra) — bem dentro dos 300s, folga real de ~120s. Medição real (83 páginas): caiu de ~51-55s sequencial para ~23s paralelo.
+- **Processamento de PDF de imagem em lotes de páginas (decisão: implementar, não adiar)**: diagnóstico real mostrou que uma chamada de visão para um PDF denso de até 100 páginas pode facilmente passar de 200-300s, risco genuíno de estourar o limite de duração da função mesmo em plataformas com limite maior (300s). Solução: processar em lotes menores por chamada de visão (ex: 20-25 páginas por requisição), concatenando os resultados — limita o tempo de qualquer chamada individual a uma janela previsível, e como efeito colateral positivo já deixa o código preparado para eventualmente suportar material acima de 100 páginas (mesmo mecanismo de lote). Declarar `export const maxDuration` explicitamente na rota/action responsável, em vez de depender do default implícito da plataforma.
 - Mensagens de erro claras e específicas por tipo de falha (limite de páginas excedido, timeout, erro de API, arquivo corrompido) devem sempre ser persistidas em `materials.erro_mensagem` e exibidas de forma legível na UI, nunca um "erro genérico" sem contexto.
 
 ## Modelo de dados (simplificado)
