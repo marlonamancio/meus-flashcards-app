@@ -66,11 +66,12 @@ Criar flashcards manualmente é o principal atrito que impede o uso consistente 
    - Validação básica: linhas malformadas (faltando frente ou verso) são ignoradas na importação, não travam o processo inteiro
    - Ao final, mostrar resumo: quantos cards foram importados com sucesso e quantos foram ignorados (com o motivo, se possível)
 
-9. **Tela "Não organizados"** (v1, sequenciada após o pipeline de IA estar pronto)
+9. **Tela "Não organizados"** (v1, pipeline de IA já pronto — implementar agora)
    - Cards sem coleção (órfãos por nunca terem sido categorizados, ou por terem sobrado após uma coleção ser apagada) ficam listados nessa tela dedicada — hoje é só um item visual na lista de Coleções, sem rota/tela real por trás
    - Para cada card: **sugestão automática de coleção via IA**, com base no conteúdo do card comparado às coleções existentes do usuário (reaproveita a mesma infraestrutura de chamada à API da Anthropic do pipeline de geração — não é uma integração de IA nova e isolada)
+   - **Arquitetura da sugestão (custo-consciente)**: **uma única chamada em lote**, não uma chamada por card — envia todos os cards órfãos (frente/verso) + a lista de nomes das coleções existentes numa única requisição com tool use, retorna um mapeamento `{flashcard_id, coleção_sugerida_id | null}` (null quando nenhuma coleção existente faz sentido pro card). Chamar a API card a card seria desnecessariamente caro e lento para uma lista potencialmente longa de órfãos.
    - Usuário toca na coleção sugerida para mover o card, ou remove o card diretamente (protótipo original: "Toque na coleção sugerida para mover cada card, ou remova o que não precisa")
-   - Depende do pipeline de upload+geração via IA já estar implementado (item 3) — não faz sentido implementar isolado antes disso, seria uma segunda integração de IA solta no código
+   - Se a usuária não tiver nenhuma coleção ainda (todas as coleções foram apagadas, ou nunca criou nenhuma), não há o que sugerir — pular a chamada de IA e tratar como "sem sugestão disponível" (mostrar só a opção de criar coleção nova ou remover)
 
 10. **Edição de perfil**
     - **Nome de exibição**: campo editável no Perfil, salvo em `user_metadata.name` do Supabase Auth. Usado no "Olá, [nome]" da Home e em qualquer outro lugar que hoje usa o fallback genérico
@@ -85,6 +86,7 @@ Criar flashcards manualmente é o principal atrito que impede o uso consistente 
     - Ordem de navegação: a mesma ordem já exibida na lista da tela (não precisa seguir a lógica de prioridade/vencimento do SM-2 — isso é exclusivo do modo de estudo)
     - **Isolamento total do SM-2 (crítico)**: este modo é puramente leitura — nunca grava em `flashcard_responses` nem em `flashcard_schedule`. Não conta como revisão, não altera `due_date`, não afeta streak, meta diária, taxa de acerto ou badges. Sem botões de rating nenhum, só navegação + virar o card.
     - Propósito: consulta rápida antes de uma prova, conferir se um card está correto, revisar sem "gastar" uma revisão do sistema de repetição espaçada — não substitui o modo de estudo, é complementar
+    - **Edição do card (v1, adicionado após uso real)**: ícone de editar no header da tela de navegação, alterna pra modo edição mostrando frente/verso como campos editáveis (mesmo padrão visual da tela de revisão pós-geração), com salvar/cancelar. Salvar faz `UPDATE` direto em `flashcards.frente`/`flashcards.verso` — **não** toca em `flashcard_responses` nem `flashcard_schedule`, mesmo isolamento do SM-2 já garantido pro resto desse modo. Confirmar que a policy de `UPDATE` em `flashcards` já existe (deveria, já que o padrão do projeto é RLS+policy+grant completo por tabela desde o início) antes de assumir que só falta a UI.
 
 ## Fora de escopo (v1) — decisões conscientes
 
@@ -175,7 +177,7 @@ Telas de Login, Coleção individual, Coleções, Progresso e Perfil revisadas e
 
 **Status de processamento (ajuste pós-implementação)**: mensagens como "Gerando flashcards com IA..." precisam de mais destaque visual — reaproveitar o padrão do componente `Alert` já existente (fundo colorido, ícone, contraste de texto), usando a cor de destaque `--accent` (não `--bad`, já que não é erro). Como sabemos por teste real que geração pode levar até ~110s em material grande, a mensagem deve gerenciar expectativa explicitamente (ex: "Gerando flashcards — pode levar até 2 minutos para materiais grandes"), não só indicar "carregando" de forma genérica.
 
-**Nota de implementação — tela de debug temporária**: `/upload/debug` foi criada durante o desenvolvimento do pipeline de extração (Estágio 1) para testar upload + polling de status + preview do conteúdo extraído, sem depender da UI final. É **ferramenta de desenvolvimento, não parte do produto** — precisa ser removida ou ocultada antes do app ser usado por outras pessoas além do desenvolvedor (antes de divulgar novas funcionalidades para os amigos testando), senão vira uma porta lateral estranha na experiência final e uma forma de gastar a API key sem os controles da UI de verdade. Não esquecer de remover ao final do Estágio 3.
+**Nota de implementação — tela de debug temporária (removida)**: `/upload/debug` foi criada durante o desenvolvimento do pipeline de extração (Estágio 1) para testar upload + polling de status + preview do conteúdo extraído, sem depender da UI final. Removida ao final do Estágio 3 (rota, `ExtractionDebug.tsx`, `ThemeGenerationDebug.tsx` e `GeneratedCardsPreview.tsx`), já com a UI real (`GenerateWithAI` + `ReviewGeneratedCards`) validada de ponta a ponta cobrindo os mesmos server actions que a tela de debug exercitava.
 
 - **Aba "Gerar com IA"**: dentro dela, o usuário escolhe entre duas origens de conteúdo (não são abas novas, é uma escolha dentro da mesma aba):
   - **Enviar arquivo**: upload de material (PDF/imagem/Word/PowerPoint, até 20 MB) → extração de conteúdo → geração
