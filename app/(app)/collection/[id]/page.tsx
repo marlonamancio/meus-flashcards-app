@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { requireUser } from '@/lib/supabase/require-user'
-import { getCollectionOverview } from '@/lib/collections-data'
+import { getCollectionOverview, getCollectionCardIds } from '@/lib/collections-data'
 import { getDueMap } from '@/lib/flashcard-schedule'
 import { AppShell } from '@/components/layout/AppShell'
 import { CollectionHeader } from '@/components/collection/CollectionHeader'
@@ -13,12 +13,19 @@ export default async function CollectionPage({ params }: { params: Promise<{ id:
   const supabase = await createClient()
   const user = await requireUser(supabase)
 
-  const collection = await getCollectionOverview(supabase, user.id, id)
+  // getDueMap only needs the collection's flashcard ids, not the full overview (metadata + first
+  // page + accuracy) — fetching that id list separately lets it run in parallel with
+  // getCollectionOverview instead of waiting for the whole thing to finish first (see CLAUDE.md
+  // "Performance — paralelização de getDueMap").
+  const [collection, cardIds] = await Promise.all([
+    getCollectionOverview(supabase, user.id, id),
+    getCollectionCardIds(supabase, user.id, id),
+  ])
   if (!collection) notFound()
 
   // cardIds is the WHOLE collection, not just the current page — hasDueCards must reflect due
   // cards anywhere in the collection, not only among the cards already loaded on screen.
-  const dueMap = await getDueMap(supabase, user.id, collection.cardIds)
+  const dueMap = await getDueMap(supabase, user.id, cardIds)
   const hasDueCards = dueMap.size > 0
 
   const stats = [

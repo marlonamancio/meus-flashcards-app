@@ -414,6 +414,14 @@ Diferente do upload de material (PDF/imagem/Word/PowerPoint), que passa pelo pip
 - **Processamento de PDF de imagem em lotes de páginas (decisão: implementar, não adiar)**: diagnóstico real mostrou que uma chamada de visão para um PDF denso de até 100 páginas pode facilmente passar de 200-300s, risco genuíno de estourar o limite de duração da função mesmo em plataformas com limite maior (300s). Solução: processar em lotes menores por chamada de visão (ex: 20-25 páginas por requisição), concatenando os resultados — limita o tempo de qualquer chamada individual a uma janela previsível, e como efeito colateral positivo já deixa o código preparado para eventualmente suportar material acima de 100 páginas (mesmo mecanismo de lote). Declarar `export const maxDuration` explicitamente na rota/action responsável, em vez de depender do default implícito da plataforma.
 - Mensagens de erro claras e específicas por tipo de falha (limite de páginas excedido, timeout, erro de API, arquivo corrompido) devem sempre ser persistidas em `materials.erro_mensagem` e exibidas de forma legível na UI, nunca um "erro genérico" sem contexto.
 
+## Performance — auditoria de navegação lenta
+
+Correções já aplicadas: `loading.tsx` nas 5 rotas principais (Next.js cobre sub-rotas automaticamente quando não têm loading próprio — `/collection/[id]` já cobre `estudar` e `navegar/[cardId]`, `/colecoes` já cobre `nao-organizados`), e paralelização de `getDueMap` com a busca de metadata da coleção via `Promise.all` (antes rodavam em série sem necessidade).
+
+**Estilo do indicador de loading (revisado — versão inicial ficou sutil demais)**: a primeira versão usava o componente `Alert` no topo da página, que passava despercebido em transições rápidas. Trocar para um indicador bem mais central e visível: overlay sobre a área de conteúdo (abaixo do header, acima da bottom nav — **mantém navegação e header visíveis**, decisão consciente já tomada antes para evitar sensação de "sumiço"), com spinner grande e centralizado verticalmente na área de conteúdo, fundo levemente esmaecido por trás.
+
+**Não-urgente, registrado sem correção**: `getCollections` e `getGlobalWeakCards` buscam todas as `flashcard_responses` do usuário sem filtrar pelo escopo — cresce linearmente com o histórico de revisões, revisitar quando o volume justificar.
+
 ## Performance — paginação da lista de cards da coleção
 
 Feedback real de uso: coleções acumulam dezenas a centenas de cards (uma única geração via IA já produziu 166 num teste real), e a lista em `/collection/[id]` renderizava todos de uma vez. Decisão: **paginação na consulta ao banco**, não só virtualização de renderização (virtualização sozinha ainda buscaria tudo do banco, resolvendo só metade do problema).

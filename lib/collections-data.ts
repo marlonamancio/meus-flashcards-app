@@ -207,6 +207,17 @@ export async function getCollectionCardsPage(
   return buildCardsPage(rows, limit, accuracyByFlashcard)
 }
 
+// Cheap, standalone fetch of just the collection's flashcard ids (no metadata, no card content,
+// no accuracy) — lets a caller that only needs ids for something else (e.g. getDueMap) fetch them
+// in parallel with the heavier getCollectionOverview/getCollectionDetail call instead of waiting
+// for it to finish first. See CLAUDE.md "Performance — paralelização de getDueMap".
+export async function getCollectionCardIds(supabase: SupabaseClient, userId: string, collectionId: string): Promise<string[]> {
+  const { data, error } = await supabase.from('collection_flashcards').select('flashcard_id').eq('collection_id', collectionId)
+
+  assertNoError(error, 'collection_flashcards')
+  return (data ?? []).map((l) => l.flashcard_id as string)
+}
+
 // Collection metadata + collection-wide accuracy — shared by getCollectionDetail (full cards) and
 // getCollectionOverview (paginated cards), so the lookup/palette/aggregate-stats logic isn't
 // duplicated between them. Palette/short-initials assignment mirrors getCollections() in
