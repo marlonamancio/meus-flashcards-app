@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import Script from 'next/script'
 import { SpeedInsights } from '@vercel/speed-insights/next'
+import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 
 const inter = Inter({
@@ -56,6 +57,7 @@ export default function RootLayout({
       <body>
         {children}
         <SpeedInsights />
+        <Analytics />
         {/* Register service worker (production only — in dev it cache-first-intercepts
             Turbopack's stable chunk URLs and serves stale JS/CSS across recompiles) */}
         {process.env.NODE_ENV === 'production' && (
