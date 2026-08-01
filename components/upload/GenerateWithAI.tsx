@@ -6,17 +6,18 @@ import { createClient } from '@/lib/supabase/client'
 import { materialTipoFromFile } from '@/lib/extraction/material-tipo'
 import { sanitizeFileName } from '@/lib/sanitize-filename'
 import { registerMaterialAction, generateFromMaterialAction, generateFromThemeAction } from '@/app/(app)/upload/actions'
-import type { Quantidade } from '@/lib/generation/types'
+import type { Quantidade, GeneratedCard } from '@/lib/generation/types'
+import type { CollectionOption } from '@/lib/collections-data'
 import { Alert } from '@/components/ui/Alert'
 import { QuantidadePicker } from '@/components/upload/QuantidadePicker'
-import { GeneratedCardsPreview } from '@/components/upload/GeneratedCardsPreview'
+import { ReviewGeneratedCards } from '@/components/upload/ReviewGeneratedCards'
 
-type MaterialStatus = 'processando' | 'pronto' | 'gerando' | 'aguardando_revisao' | 'erro'
+type MaterialStatus = 'processando' | 'pronto' | 'gerando' | 'aguardando_revisao' | 'concluido' | 'erro'
 
 type MaterialRow = {
   id: string
   status: MaterialStatus
-  cards_gerados: { frente: string; verso: string }[] | null
+  cards_gerados: GeneratedCard[] | null
   erro_mensagem: string | null
 }
 
@@ -38,7 +39,7 @@ const inactiveSourceStyle: CSSProperties = { padding: '7px 13px', background: 't
 // The file is uploaded straight from the browser to Supabase Storage, not through a Server
 // Action/Route Handler — see registerMaterialAction in app/(app)/upload/actions.ts for why
 // (Node/undici breaks on multipart bodies well under the 20 MB this app needs to support).
-export function GenerateWithAI({ userId }: { userId: string }) {
+export function GenerateWithAI({ userId, collections }: { userId: string; collections: CollectionOption[] }) {
   const [source, setSource] = useState<Source>('arquivo')
   const inputRef = useRef<HTMLInputElement>(null)
   const [isUploading, setIsUploading] = useState(false)
@@ -157,6 +158,21 @@ export function GenerateWithAI({ userId }: { userId: string }) {
     await refreshMaterial(result.materialId)
   }
 
+  function handleDiscardedAll(materialIdToRefresh: string | null) {
+    if (materialIdToRefresh) {
+      refreshMaterial(materialIdToRefresh)
+    } else {
+      setMaterial(null)
+      setTema('')
+    }
+  }
+
+  function handleGenerateMore() {
+    setMaterial(null)
+    setTema('')
+    setError(null)
+  }
+
   const isBusy = isUploading || isSubmitting
   const showQuantidadeAndButton = source === 'arquivo' ? material?.status === 'pronto' : !material || material.status === 'erro'
 
@@ -268,7 +284,13 @@ export function GenerateWithAI({ userId }: { userId: string }) {
 
       {material?.status === 'aguardando_revisao' && material.cards_gerados && (
         <div style={{ marginTop: 16 }}>
-          <GeneratedCardsPreview cards={material.cards_gerados} />
+          <ReviewGeneratedCards
+            materialId={material.id}
+            cards={material.cards_gerados}
+            collections={collections}
+            onDiscardedAll={handleDiscardedAll}
+            onGenerateMore={handleGenerateMore}
+          />
         </div>
       )}
     </>

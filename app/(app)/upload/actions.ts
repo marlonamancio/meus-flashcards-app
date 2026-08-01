@@ -5,7 +5,8 @@ import { after } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireUser } from '@/lib/supabase/require-user'
 import { extractContent, materialTipoFromFile } from '@/lib/extraction'
-import { generateFlashcardsFromMaterial, generateFlashcardsFromTheme, type Quantidade } from '@/lib/generation'
+import { generateFlashcardsFromMaterial, generateFlashcardsFromTheme, type Quantidade, type GeneratedCard } from '@/lib/generation'
+import type { DestinationValue } from '@/components/upload/DestinationPicker'
 
 const MAX_CSV_BYTES = 5 * 1024 * 1024
 const MATERIALS_BUCKET = 'materiais'
@@ -348,4 +349,146 @@ export async function generateFromThemeAction(tema: string, quantidade: Quantida
   })
 
   return { ok: true, materialId }
+}
+
+export type SaveReviewSummary = {
+  savedCount: number
+  collectionId: string | null
+  collectionName: string | null
+  warning: string | null
+}
+
+export type SaveReviewResult = { ok: true; summary: SaveReviewSummary } | { ok: false; error: string }
+
+// Stage 3: persists the cards the user reviewed (edited/discarded client-side) from a material's
+// cards_gerados draft into real flashcards rows, with the same destination logic/reasoning as
+// importCsvAction (cards are inserted first, so a destination failure never loses them — it only
+// downgrades to a `warning` on an otherwise-successful summary).
+export async function saveReviewedCardsAction(
+  materialId: string,
+  cards: GeneratedCard[],
+  destination: DestinationValue
+): Promise<SaveReviewResult> {
+  const supabase = await createClient()
+  const user = await requireUser(supabase)
+
+  const cleaned = cards.map((c) => ({ frente: c.frente.trim(), verso: c.verso.trim() }))
+  if (cleaned.length === 0) {
+    return { ok: false, error: 'Nenhum card para salvar.' }
+  }
+  if (cleaned.some((c) => !c.frente || !c.verso)) {
+    return { ok: false, error: 'Preencha a frente e o verso de todos os cards antes de salvar.' }
+  }
+
+  const { data: material, error: fetchError } = await supabase
+    .from('materials')
+    .select('id, status')
+    .eq('id', materialId)
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (fetchError || !material) {
+    return { ok: false, error: 'Material não encontrado.' }
+  }
+  if (material.status !== 'aguardando_revisao') {
+    return { ok: false, error: `Material não está aguardando revisão (está "${material.status}").` }
+  }
+
+  const { data: inserted, error: insertError } = await supabase
+    .from('flashcards')
+    .insert(cleaned.map((c) => ({ user_id: user.id, frente: c.frente, verso: c.verso, origem: 'ia', material_id: materialId })))
+    .select('id')
+
+  if (insertError || !inserted) {
+    return { ok: false, error: 'Não foi possível salvar os flashcards.' }
+  }
+
+  let collectionId: string | null = null
+  let collectionName: string | null = null
+  let warning: string | null = null
+
+  if (destination.type === 'existing') {
+    const { data: col, error } = await supabase
+      .from('collections')
+      .select('id, nome')
+      .eq('id', destination.collectionId)
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (error || !col) {
+      warning = 'Não foi possível encontrar a coleção selecionada. Os cards ficaram sem coleção.'
+    } else {
+      collectionId = col.id
+      collectionName = col.nome
+    }
+  } else if (destination.type === 'new' && destination.name.trim()) {
+    const { data: newCol, error } = await supabase
+      .from('collections')
+      .insert({ user_id: user.id, nome: destination.name.trim() })
+      .select('id, nome')
+      .single()
+
+    if (error || !newCol) {
+      warning = 'Não foi possível criar a coleção. Os cards ficaram sem coleção.'
+    } else {
+      collectionId = newCol.id
+      collectionName = newCol.nome
+    }
+  }
+
+  if (collectionId) {
+    const links = inserted.map((f) => ({ collection_id: collectionId as string, flashcard_id: f.id as string }))
+    const { error: linkError } = await supabase.from('collection_flashcards').insert(links)
+
+    if (linkError) {
+      warning = `Não foi possível vincular os cards à coleção "${collectionName}". Eles ficaram sem coleção.`
+      collectionId = null
+      collectionName = null
+    }
+  }
+
+  // The review cycle ends here regardless of a destination warning — the cards are already
+  // safely in `flashcards`, and cards_gerados (the pre-review draft) is now redundant.
+  await supabase.from('materials').update({ status: 'concluido', cards_gerados: null }).eq('id', materialId)
+
+  return {
+    ok: true,
+    summary: { savedCount: cleaned.length, collectionId, collectionName, warning },
+  }
+}
+
+export type DiscardReviewResult = { ok: true; materialIdToRefresh: string | null } | { ok: false; error: string }
+
+// Discarding everything ends the review without saving. File-mode materials keep their
+// conteudo_extraido, so they go back to 'pronto' and can be regenerated from the same extracted
+// content. Theme-mode materials have no extraction step to fall back to — there is nothing to
+// "regenerate from" — so the simplest correct move is deleting the material row outright, letting
+// the client reset to its initial "describe a theme" state, same as if nothing had run yet.
+export async function discardGeneratedCardsAction(materialId: string): Promise<DiscardReviewResult> {
+  const supabase = await createClient()
+  const user = await requireUser(supabase)
+
+  const { data: material, error: fetchError } = await supabase
+    .from('materials')
+    .select('id, modo, status')
+    .eq('id', materialId)
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (fetchError || !material) {
+    return { ok: false, error: 'Material não encontrado.' }
+  }
+  if (material.status !== 'aguardando_revisao') {
+    return { ok: false, error: `Material não está aguardando revisão (está "${material.status}").` }
+  }
+
+  if (material.modo === 'tema') {
+    const { error } = await supabase.from('materials').delete().eq('id', materialId)
+    if (error) return { ok: false, error: 'Não foi possível descartar os cards.' }
+    return { ok: true, materialIdToRefresh: null }
+  }
+
+  const { error } = await supabase.from('materials').update({ status: 'pronto', cards_gerados: null }).eq('id', materialId)
+  if (error) return { ok: false, error: 'Não foi possível descartar os cards.' }
+  return { ok: true, materialIdToRefresh: materialId }
 }

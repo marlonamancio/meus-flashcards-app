@@ -33,7 +33,7 @@ export function UploadView({ collections, userId }: { collections: CollectionOpt
         </button>
       </div>
 
-      {tab === 'ia' ? <GenerateWithAI userId={userId} /> : <CsvImportTab collections={collections} />}
+      {tab === 'ia' ? <GenerateWithAI userId={userId} collections={collections} /> : <CsvImportTab collections={collections} />}
     </>
   )
 }
