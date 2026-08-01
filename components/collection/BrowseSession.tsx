@@ -2,18 +2,28 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Check, ChevronLeft, ChevronRight, Loader2, Pencil, X } from 'lucide-react'
 import type { CollectionDetail } from '@/lib/collections-data'
+import { updateFlashcardAction } from '@/app/(app)/collection/[id]/navegar/actions'
+import { Alert } from '@/components/ui/Alert'
 
 // Read-only browsing of a collection's cards — flip to see the answer, step forward/back with
 // buttons (no swipe, same convention as the rest of the app). Deliberately isolated from the
-// study flow: no server actions imported here at all, so there is no way for this screen to ever
-// write to flashcard_responses or flashcard_schedule, touch due_date, streaks, the daily goal, or
-// badges. See CLAUDE.md item 11 and USER_STORIES.md US34.
+// study flow: no study-recording server actions imported here, so there is no way for this
+// screen to ever write to flashcard_responses or flashcard_schedule, touch due_date, streaks,
+// the daily goal, or badges. Editing (below) is the one write path this screen has, and it's
+// scoped to flashcards.frente/verso only — see CLAUDE.md item 11 and USER_STORIES.md US34.
 export function BrowseSession({ collection, initialIndex }: { collection: CollectionDetail; initialIndex: number }) {
-  const cards = collection.cards
+  const router = useRouter()
+  const [cards, setCards] = useState(collection.cards)
   const [index, setIndex] = useState(initialIndex)
   const [flipped, setFlipped] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [draftFrente, setDraftFrente] = useState('')
+  const [draftVerso, setDraftVerso] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const card = cards[index]
   const isFirst = index === 0
@@ -22,6 +32,39 @@ export function BrowseSession({ collection, initialIndex }: { collection: Collec
   function goTo(nextIndex: number) {
     setIndex(nextIndex)
     setFlipped(false)
+  }
+
+  function startEditing() {
+    setDraftFrente(card.frente)
+    setDraftVerso(card.verso)
+    setError(null)
+    setIsEditing(true)
+  }
+
+  function cancelEditing() {
+    setIsEditing(false)
+    setError(null)
+  }
+
+  async function handleSave() {
+    if (!draftFrente.trim() || !draftVerso.trim()) {
+      setError('Preencha a frente e o verso do card.')
+      return
+    }
+
+    setIsSaving(true)
+    setError(null)
+    const result = await updateFlashcardAction(card.id, draftFrente, draftVerso)
+    setIsSaving(false)
+
+    if (!result.ok) {
+      setError(result.error)
+      return
+    }
+
+    setCards((prev) => prev.map((c, i) => (i === index ? { ...c, frente: draftFrente.trim(), verso: draftVerso.trim() } : c)))
+    setIsEditing(false)
+    router.refresh()
   }
 
   return (
@@ -51,97 +94,183 @@ export function BrowseSession({ collection, initialIndex }: { collection: Collec
             </div>
           </div>
         </div>
+        {!isEditing && (
+          <button
+            onClick={startEditing}
+            aria-label="Editar card"
+            className="flex items-center justify-center rounded-[11px] flex-none"
+            style={{ width: 38, height: 38, background: 'var(--surface)', border: '1px solid var(--border)' }}
+          >
+            <Pencil size={17} strokeWidth={2.2} />
+          </button>
+        )}
         <span className="text-xs font-bold flex-none" style={{ color: 'var(--muted)' }}>
           {index + 1} / {cards.length}
         </span>
       </div>
 
       <div className="flex-1 flex flex-col" style={{ padding: '8px 22px 20px', minHeight: 0 }}>
-        <div className="flex-1 relative" style={{ perspective: 1600, minHeight: 0 }}>
-          <div
-            onClick={() => setFlipped((f) => !f)}
-            className="relative w-full h-full"
-            style={{
-              cursor: 'pointer',
-              transformStyle: 'preserve-3d',
-              transition: 'transform 0.5s cubic-bezier(.4,.15,.2,1)',
-              transform: flipped ? 'rotateY(180deg)' : 'none',
-            }}
-          >
-            <div
-              className="absolute inset-0 flex flex-col items-center justify-center text-center"
-              style={{
-                backfaceVisibility: 'hidden',
-                WebkitBackfaceVisibility: 'hidden',
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 24,
-                boxShadow: 'var(--shadow)',
-                padding: '32px 26px',
-                overflowY: 'auto',
-              }}
-            >
-              <span
-                className="text-[11px] font-bold uppercase absolute"
-                style={{ letterSpacing: '0.08em', color: collection.color, top: 22, left: 24 }}
+        {isEditing ? (
+          <>
+            <div className="flex-1 flex flex-col gap-3" style={{ minHeight: 0, overflowY: 'auto' }}>
+              <div
+                className="rounded-[24px]"
+                style={{ padding: '20px 22px', background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}
               >
-                Pergunta
-              </span>
-              <div className="text-[21px] font-semibold" style={{ lineHeight: 1.4, letterSpacing: '-0.01em' }}>
-                {card.frente}
+                <span className="text-[11px] font-bold uppercase" style={{ letterSpacing: '0.08em', color: collection.color }}>
+                  Pergunta
+                </span>
+                <textarea
+                  value={draftFrente}
+                  onChange={(e) => setDraftFrente(e.target.value)}
+                  rows={3}
+                  className="w-full text-[15px] font-semibold rounded-[11px]"
+                  style={{
+                    marginTop: 10,
+                    padding: '10px 12px',
+                    background: 'var(--bg)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text)',
+                    resize: 'vertical',
+                  }}
+                />
               </div>
-              <div className="absolute text-xs flex items-center gap-1.5" style={{ bottom: 22, color: 'var(--muted)' }}>
-                toque para virar
+
+              <div
+                className="rounded-[24px]"
+                style={{ padding: '20px 22px', background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}
+              >
+                <span className="text-[11px] font-bold uppercase" style={{ letterSpacing: '0.08em', color: 'var(--accent)' }}>
+                  Resposta
+                </span>
+                <textarea
+                  value={draftVerso}
+                  onChange={(e) => setDraftVerso(e.target.value)}
+                  rows={4}
+                  className="w-full text-[14px] rounded-[11px]"
+                  style={{
+                    marginTop: 10,
+                    padding: '10px 12px',
+                    background: 'var(--bg)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text)',
+                    resize: 'vertical',
+                  }}
+                />
+              </div>
+
+              {error && <Alert>{error}</Alert>}
+            </div>
+
+            <div className="flex gap-[11px]" style={{ marginTop: 18, flex: 'none' }}>
+              <button
+                onClick={cancelEditing}
+                disabled={isSaving}
+                className="flex-1 flex items-center justify-center gap-2 rounded-2xl text-[15px] font-bold disabled:opacity-40"
+                style={{ padding: 16, background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)' }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={isSaving}
+                className="flex-1 flex items-center justify-center gap-2 rounded-2xl text-[15px] font-bold disabled:opacity-60"
+                style={{ padding: 16, background: 'var(--accent)', color: 'var(--on-accent)' }}
+              >
+                {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} strokeWidth={2.3} />}
+                {isSaving ? 'Salvando...' : 'Salvar'}
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex-1 relative" style={{ perspective: 1600, minHeight: 0 }}>
+              <div
+                onClick={() => setFlipped((f) => !f)}
+                className="relative w-full h-full"
+                style={{
+                  cursor: 'pointer',
+                  transformStyle: 'preserve-3d',
+                  transition: 'transform 0.5s cubic-bezier(.4,.15,.2,1)',
+                  transform: flipped ? 'rotateY(180deg)' : 'none',
+                }}
+              >
+                <div
+                  className="absolute inset-0 flex flex-col items-center justify-center text-center"
+                  style={{
+                    backfaceVisibility: 'hidden',
+                    WebkitBackfaceVisibility: 'hidden',
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 24,
+                    boxShadow: 'var(--shadow)',
+                    padding: '32px 26px',
+                    overflowY: 'auto',
+                  }}
+                >
+                  <span
+                    className="text-[11px] font-bold uppercase absolute"
+                    style={{ letterSpacing: '0.08em', color: collection.color, top: 22, left: 24 }}
+                  >
+                    Pergunta
+                  </span>
+                  <div className="text-[21px] font-semibold" style={{ lineHeight: 1.4, letterSpacing: '-0.01em' }}>
+                    {card.frente}
+                  </div>
+                  <div className="absolute text-xs flex items-center gap-1.5" style={{ bottom: 22, color: 'var(--muted)' }}>
+                    toque para virar
+                  </div>
+                </div>
+
+                <div
+                  className="absolute inset-0 flex flex-col items-center justify-center text-center"
+                  style={{
+                    backfaceVisibility: 'hidden',
+                    WebkitBackfaceVisibility: 'hidden',
+                    transform: 'rotateY(180deg)',
+                    background: 'var(--text)',
+                    color: 'var(--bg)',
+                    borderRadius: 24,
+                    boxShadow: 'var(--shadow)',
+                    padding: '32px 26px',
+                    overflowY: 'auto',
+                  }}
+                >
+                  <span
+                    className="text-[11px] font-bold uppercase absolute"
+                    style={{ letterSpacing: '0.08em', color: 'var(--accent)', top: 22, left: 24 }}
+                  >
+                    Resposta
+                  </span>
+                  <div className="text-[17px] font-medium" style={{ lineHeight: 1.5 }}>
+                    {card.verso}
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div
-              className="absolute inset-0 flex flex-col items-center justify-center text-center"
-              style={{
-                backfaceVisibility: 'hidden',
-                WebkitBackfaceVisibility: 'hidden',
-                transform: 'rotateY(180deg)',
-                background: 'var(--text)',
-                color: 'var(--bg)',
-                borderRadius: 24,
-                boxShadow: 'var(--shadow)',
-                padding: '32px 26px',
-                overflowY: 'auto',
-              }}
-            >
-              <span
-                className="text-[11px] font-bold uppercase absolute"
-                style={{ letterSpacing: '0.08em', color: 'var(--accent)', top: 22, left: 24 }}
+            <div className="flex gap-[11px]" style={{ marginTop: 18, flex: 'none' }}>
+              <button
+                onClick={() => goTo(index - 1)}
+                disabled={isFirst}
+                className="flex-1 flex items-center justify-center gap-2 rounded-2xl text-[15px] font-bold disabled:opacity-40"
+                style={{ padding: 16, background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)' }}
               >
-                Resposta
-              </span>
-              <div className="text-[17px] font-medium" style={{ lineHeight: 1.5 }}>
-                {card.verso}
-              </div>
+                <ChevronLeft size={19} strokeWidth={2.3} />
+                Anterior
+              </button>
+              <button
+                onClick={() => goTo(index + 1)}
+                disabled={isLast}
+                className="flex-1 flex items-center justify-center gap-2 rounded-2xl text-[15px] font-bold disabled:opacity-40"
+                style={{ padding: 16, background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)' }}
+              >
+                Próximo
+                <ChevronRight size={19} strokeWidth={2.3} />
+              </button>
             </div>
-          </div>
-        </div>
-
-        <div className="flex gap-[11px]" style={{ marginTop: 18, flex: 'none' }}>
-          <button
-            onClick={() => goTo(index - 1)}
-            disabled={isFirst}
-            className="flex-1 flex items-center justify-center gap-2 rounded-2xl text-[15px] font-bold disabled:opacity-40"
-            style={{ padding: 16, background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)' }}
-          >
-            <ChevronLeft size={19} strokeWidth={2.3} />
-            Anterior
-          </button>
-          <button
-            onClick={() => goTo(index + 1)}
-            disabled={isLast}
-            className="flex-1 flex items-center justify-center gap-2 rounded-2xl text-[15px] font-bold disabled:opacity-40"
-            style={{ padding: 16, background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)' }}
-          >
-            Próximo
-            <ChevronRight size={19} strokeWidth={2.3} />
-          </button>
-        </div>
+          </>
+        )}
       </div>
     </div>
   )

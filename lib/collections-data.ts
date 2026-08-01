@@ -123,7 +123,14 @@ export async function getCollectionDetail(
         .select('id, frente, verso')
         .in('id', flashcardIds)
         .eq('user_id', userId)
-        .order('criado_em', { ascending: true }),
+        // `id` as a tiebreaker matters because criado_em alone isn't unique: every AI-generation
+        // or CSV-import batch inserts its cards in a single statement, so they all share the
+        // exact same now()-derived timestamp. SQL doesn't define an order among tied rows, so
+        // without a secondary key Postgres is free to return them in whatever order it wants —
+        // editing a card (which rewrites its physical row under MVCC) is a plausible trigger for
+        // that order to shift. `id` never changes on UPDATE, so this pins ties permanently.
+        .order('criado_em', { ascending: true })
+        .order('id', { ascending: true }),
       supabase.from('flashcard_responses').select('flashcard_id, acertou').eq('user_id', userId).in('flashcard_id', flashcardIds),
     ])
 
