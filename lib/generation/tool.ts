@@ -3,11 +3,14 @@ import type { GeneratedCard, Quantidade } from './types'
 
 // Same model as extraction's vision fallback (lib/extraction/claude-vision.ts) — concurso público
 // content leans on exact article numbers/dates, where the extra precision pays for itself.
-const GENERATION_MODEL = 'claude-sonnet-5'
+export const GENERATION_MODEL = 'claude-sonnet-5'
 
 let client: Anthropic | undefined
 
-function getClient(): Anthropic {
+// Exported so lib/generation/suggest.ts (collection suggestion for "Não organizados") reuses the
+// same lazily-created client instead of standing up a second one — same Anthropic infrastructure,
+// not a new/isolated integration (CLAUDE.md item 9).
+export function getClient(): Anthropic {
   if (!client) {
     client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
   }

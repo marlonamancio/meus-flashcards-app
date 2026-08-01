@@ -122,7 +122,8 @@ export function ColecoesView({
       )}
 
       {unsortedCount > 0 && (
-        <div
+        <Link
+          href="/colecoes/nao-organizados"
           className="flex items-center gap-[14px] rounded-2xl"
           style={{ padding: '14px 13px', marginTop: 14, background: 'var(--surface-2)', border: '1px dashed var(--border)' }}
         >
@@ -138,7 +139,8 @@ export function ColecoesView({
               {unsortedCount} card{unsortedCount === 1 ? '' : 's'} sem coleção
             </div>
           </div>
-        </div>
+          <ChevronRight size={18} className="flex-none" style={{ color: 'var(--muted)' }} />
+        </Link>
       )}
 
       <div

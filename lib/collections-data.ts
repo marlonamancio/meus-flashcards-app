@@ -40,8 +40,9 @@ export type CollectionDetail = {
 }
 
 // Cards belong to a collection only via collection_flashcards; a card with no row there
-// (for any of the user's collections) is what the UI calls "não organizados".
-export async function getUnsortedCount(supabase: SupabaseClient, userId: string): Promise<number> {
+// (for any of the user's collections) is what the UI calls "não organizados". Shared by
+// getUnsortedCount (Coleções list badge) and getUnsortedCards ("Não organizados" screen).
+async function getUnsortedFlashcardIds(supabase: SupabaseClient, userId: string): Promise<string[]> {
   const [{ data: flashcards, error: flashcardsError }, { data: collections, error: collectionsError }] =
     await Promise.all([
       supabase.from('flashcards').select('id').eq('user_id', userId),
@@ -52,10 +53,10 @@ export async function getUnsortedCount(supabase: SupabaseClient, userId: string)
   assertNoError(collectionsError, 'collections')
 
   const flashcardIds = (flashcards ?? []).map((f) => f.id as string)
-  if (flashcardIds.length === 0) return 0
+  if (flashcardIds.length === 0) return []
 
   const collectionIds = (collections ?? []).map((c) => c.id as string)
-  if (collectionIds.length === 0) return flashcardIds.length
+  if (collectionIds.length === 0) return flashcardIds
 
   const { data: links, error: linksError } = await supabase
     .from('collection_flashcards')
@@ -65,7 +66,37 @@ export async function getUnsortedCount(supabase: SupabaseClient, userId: string)
   assertNoError(linksError, 'collection_flashcards')
 
   const linkedIds = new Set((links ?? []).map((l) => l.flashcard_id as string))
-  return flashcardIds.filter((id) => !linkedIds.has(id)).length
+  return flashcardIds.filter((id) => !linkedIds.has(id))
+}
+
+export async function getUnsortedCount(supabase: SupabaseClient, userId: string): Promise<number> {
+  const ids = await getUnsortedFlashcardIds(supabase, userId)
+  return ids.length
+}
+
+export type UnsortedCard = {
+  id: string
+  frente: string
+  verso: string
+}
+
+export async function getUnsortedCards(supabase: SupabaseClient, userId: string): Promise<UnsortedCard[]> {
+  const ids = await getUnsortedFlashcardIds(supabase, userId)
+  if (ids.length === 0) return []
+
+  const { data, error } = await supabase
+    .from('flashcards')
+    .select('id, frente, verso')
+    .in('id', ids)
+    .eq('user_id', userId)
+    // `id` as tiebreaker: cards from the same AI-generation/CSV-import batch share the exact
+    // same criado_em (a single bulk INSERT, one now() for the whole statement) — see the fix in
+    // getCollectionDetail below for the full reasoning.
+    .order('criado_em', { ascending: true })
+    .order('id', { ascending: true })
+
+  assertNoError(error, 'flashcards')
+  return data ?? []
 }
 
 // Palette/short-initials assignment mirrors getCollections() in home-data.ts (index in the
