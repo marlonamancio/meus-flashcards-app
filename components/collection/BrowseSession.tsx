@@ -4,8 +4,9 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Check, ChevronLeft, ChevronRight, Loader2, Pencil, X } from 'lucide-react'
-import type { CollectionDetail } from '@/lib/collections-data'
+import type { CollectionDetail, CollectionOption } from '@/lib/collections-data'
 import { updateFlashcardAction } from '@/app/(app)/collection/[id]/navegar/actions'
+import { DestinationPicker, type DestinationValue } from '@/components/upload/DestinationPicker'
 import { Alert } from '@/components/ui/Alert'
 
 // Read-only browsing of a collection's cards — flip to see the answer, step forward/back with
@@ -13,8 +14,17 @@ import { Alert } from '@/components/ui/Alert'
 // study flow: no study-recording server actions imported here, so there is no way for this
 // screen to ever write to flashcard_responses or flashcard_schedule, touch due_date, streaks,
 // the daily goal, or badges. Editing (below) is the one write path this screen has, and it's
-// scoped to flashcards.frente/verso only — see CLAUDE.md item 11 and USER_STORIES.md US34.
-export function BrowseSession({ collection, initialIndex }: { collection: CollectionDetail; initialIndex: number }) {
+// scoped to flashcards.frente/verso and collection_flashcards only — see CLAUDE.md item 11 and
+// USER_STORIES.md US34.
+export function BrowseSession({
+  collection,
+  collections,
+  initialIndex,
+}: {
+  collection: CollectionDetail
+  collections: CollectionOption[]
+  initialIndex: number
+}) {
   const router = useRouter()
   const [cards, setCards] = useState(collection.cards)
   const [index, setIndex] = useState(initialIndex)
@@ -22,6 +32,7 @@ export function BrowseSession({ collection, initialIndex }: { collection: Collec
   const [isEditing, setIsEditing] = useState(false)
   const [draftFrente, setDraftFrente] = useState('')
   const [draftVerso, setDraftVerso] = useState('')
+  const [draftDestination, setDraftDestination] = useState<DestinationValue>({ type: 'existing', collectionId: collection.id })
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -37,6 +48,9 @@ export function BrowseSession({ collection, initialIndex }: { collection: Collec
   function startEditing() {
     setDraftFrente(card.frente)
     setDraftVerso(card.verso)
+    // Pre-selected on the collection this session was opened from — leaving it untouched means
+    // "no change", handled as a no-op by the action.
+    setDraftDestination({ type: 'existing', collectionId: collection.id })
     setError(null)
     setIsEditing(true)
   }
@@ -51,14 +65,48 @@ export function BrowseSession({ collection, initialIndex }: { collection: Collec
       setError('Preencha a frente e o verso do card.')
       return
     }
+    if (draftDestination.type === 'new' && !draftDestination.name.trim()) {
+      setError('Informe um nome para a nova coleção.')
+      return
+    }
 
     setIsSaving(true)
     setError(null)
-    const result = await updateFlashcardAction(card.id, draftFrente, draftVerso)
+    const result = await updateFlashcardAction(card.id, draftFrente, draftVerso, collection.id, draftDestination)
     setIsSaving(false)
 
     if (!result.ok) {
       setError(result.error)
+      return
+    }
+
+    if (result.movedAway) {
+      // The card no longer belongs to the collection this browse session was opened from, so it
+      // no longer fits this queue — drop it and move on instead of bouncing back to the
+      // collection list every time. This lets someone reorganizing several misplaced cards in a
+      // row keep browsing/editing without getting kicked out after each one; only when nothing's
+      // left to browse does it fall back to the collection page.
+      const remaining = cards.filter((c) => c.id !== card.id)
+
+      // router.replace, not push, for both exits below: the URL's [cardId] must never keep
+      // pointing at a card that just left this collection. The bug this fixes: staying on the
+      // old (now-invalid) /navegar/[cardId] URL and calling router.refresh() re-runs the page's
+      // Server Component with that stale id — getCollectionDetail's `cards` no longer include
+      // it, `findIndex` returns -1, and the page 404s. push (instead of replace) had the same
+      // problem one step removed: the dead URL stayed reachable via the browser's back button.
+      if (remaining.length === 0) {
+        router.replace(`/collection/${collection.id}`)
+        return
+      }
+
+      const nextIndex = Math.min(index, remaining.length - 1)
+      const nextCard = remaining[nextIndex]
+
+      setCards(remaining)
+      setIndex(nextIndex)
+      setFlipped(false)
+      setIsEditing(false)
+      router.replace(`/collection/${collection.id}/navegar/${nextCard.id}`)
       return
     }
 
@@ -158,6 +206,8 @@ export function BrowseSession({ collection, initialIndex }: { collection: Collec
                   }}
                 />
               </div>
+
+              <DestinationPicker label="Coleção deste card" collections={collections} value={draftDestination} onChange={setDraftDestination} />
 
               {error && <Alert>{error}</Alert>}
             </div>

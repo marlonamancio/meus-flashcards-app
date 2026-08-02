@@ -38,17 +38,19 @@ export function DestinationPicker({
   collections,
   value,
   onChange,
+  label = 'Onde salvar os cards?',
 }: {
   collections: CollectionOption[]
   value: DestinationValue
   onChange: (value: DestinationValue) => void
+  label?: string
 }) {
   const hasCollections = collections.length > 0
 
   return (
     <div>
       <div className="text-[13px] font-bold" style={{ margin: '22px 0 10px' }}>
-        Onde salvar os cards?
+        {label}
       </div>
       <div className="flex flex-col gap-2">
         <div
