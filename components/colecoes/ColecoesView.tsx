@@ -3,11 +3,39 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ChevronRight, Inbox, Plus, Search } from 'lucide-react'
+import { ChevronDown, ChevronRight, Inbox, Plus, Search } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { CollectionSummary } from '@/lib/home-data'
 import { HeaderTitle } from '@/components/layout/HeaderTitle'
 import { Alert } from '@/components/ui/Alert'
+
+// One row's markup, reused for a solo (parentless, childless) collection and for a child rendered
+// inside its mãe's expanded group — same visual style as the flat list always had.
+function CollectionRow({ col, indent }: { col: CollectionSummary; indent?: boolean }) {
+  return (
+    <Link
+      href={`/collection/${col.id}`}
+      className="flex items-center gap-[14px] rounded-[16px]"
+      style={{ padding: 13, marginLeft: indent ? 18 : 0, background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}
+    >
+      <div
+        className="flex-none flex items-center justify-center rounded-[12px] text-[15px] font-bold"
+        style={{ width: 44, height: 44, background: col.soft, color: col.color }}
+      >
+        {col.short}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-[14.5px] font-semibold truncate" style={{ letterSpacing: '-0.01em' }}>
+          {col.nome}
+        </div>
+        <div className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
+          {col.cardCount} card{col.cardCount === 1 ? '' : 's'} · {col.accuracyPct !== null ? `${col.accuracyPct}%` : '—'}
+        </div>
+      </div>
+      <ChevronRight size={18} className="flex-none" style={{ color: 'var(--muted)' }} />
+    </Link>
+  )
+}
 
 export function ColecoesView({
   collections,
@@ -24,11 +52,42 @@ export function ColecoesView({
   const [name, setName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+
+  function toggleCollapsed(id: string) {
+    setCollapsed((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return collections
     return collections.filter((c) => c.nome.toLowerCase().includes(q))
+  }, [collections, query])
+
+  // Sub-coleções (CLAUDE.md item 4): agrupamento visual mãe → filhas, um nível só. Ativo apenas
+  // sem busca — uma busca ativa quebra o agrupamento de propósito (mostra o resultado plano,
+  // filhas e mães misturadas por relevância) em vez de esconder um resultado cuja mãe não bateu
+  // no termo buscado.
+  const grouped = useMemo(() => {
+    if (query.trim()) return null
+
+    const childrenByParent = new Map<string, CollectionSummary[]>()
+    const roots: CollectionSummary[] = []
+    for (const c of collections) {
+      if (c.parentId) {
+        const list = childrenByParent.get(c.parentId) ?? []
+        list.push(c)
+        childrenByParent.set(c.parentId, list)
+      } else {
+        roots.push(c)
+      }
+    }
+    return { roots, childrenByParent }
   }, [collections, query])
 
   function closeCreate() {
@@ -150,38 +209,75 @@ export function ColecoesView({
         Todas · {collections.length}
       </div>
 
-      {filtered.length === 0 ? (
+      {grouped ? (
+        grouped.roots.length === 0 ? (
+          <div
+            className="rounded-2xl text-center"
+            style={{ padding: '28px 16px', background: 'var(--surface)', border: '1px dashed var(--border)', color: 'var(--muted)', fontSize: 13.5 }}
+          >
+            Nenhuma coleção ainda. Toque em + para criar a primeira.
+          </div>
+        ) : (
+          <div className="flex flex-col gap-[9px]">
+            {grouped.roots.map((col) => {
+              const children = grouped.childrenByParent.get(col.id) ?? []
+              if (children.length === 0) return <CollectionRow key={col.id} col={col} />
+
+              const isExpanded = !collapsed.has(col.id)
+              const totalCardCount = col.cardCount + children.reduce((sum, c) => sum + c.cardCount, 0)
+
+              return (
+                <div key={col.id}>
+                  <div className="flex items-center gap-[8px]">
+                    <Link href={`/collection/${col.id}`} className="flex-1 flex items-center gap-[14px] rounded-[16px] min-w-0" style={{ padding: 13, background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
+                      <div
+                        className="flex-none flex items-center justify-center rounded-[12px] text-[15px] font-bold"
+                        style={{ width: 44, height: 44, background: col.soft, color: col.color }}
+                      >
+                        {col.short}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[14.5px] font-semibold truncate" style={{ letterSpacing: '-0.01em' }}>
+                          {col.nome}
+                        </div>
+                        <div className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
+                          {totalCardCount} card{totalCardCount === 1 ? '' : 's'} · {children.length} subcoleç{children.length === 1 ? 'ão' : 'ões'}
+                        </div>
+                      </div>
+                    </Link>
+                    <button
+                      aria-label={isExpanded ? 'Recolher' : 'Expandir'}
+                      onClick={() => toggleCollapsed(col.id)}
+                      className="flex-none flex items-center justify-center rounded-[12px]"
+                      style={{ width: 44, height: 52, background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--muted)' }}
+                    >
+                      {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                    </button>
+                  </div>
+
+                  {isExpanded && (
+                    <div className="flex flex-col gap-[9px]" style={{ marginTop: 9 }}>
+                      {children.map((child) => (
+                        <CollectionRow key={child.id} col={child} indent />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )
+      ) : filtered.length === 0 ? (
         <div
           className="rounded-2xl text-center"
           style={{ padding: '28px 16px', background: 'var(--surface)', border: '1px dashed var(--border)', color: 'var(--muted)', fontSize: 13.5 }}
         >
-          {collections.length === 0 ? 'Nenhuma coleção ainda. Toque em + para criar a primeira.' : 'Nenhuma coleção encontrada.'}
+          Nenhuma coleção encontrada.
         </div>
       ) : (
         <div className="flex flex-col gap-[9px]">
           {filtered.map((col) => (
-            <Link
-              key={col.id}
-              href={`/collection/${col.id}`}
-              className="flex items-center gap-[14px] rounded-[16px]"
-              style={{ padding: 13, background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}
-            >
-              <div
-                className="flex-none flex items-center justify-center rounded-[12px] text-[15px] font-bold"
-                style={{ width: 44, height: 44, background: col.soft, color: col.color }}
-              >
-                {col.short}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-[14.5px] font-semibold truncate" style={{ letterSpacing: '-0.01em' }}>
-                  {col.nome}
-                </div>
-                <div className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
-                  {col.cardCount} card{col.cardCount === 1 ? '' : 's'} · {col.accuracyPct !== null ? `${col.accuracyPct}%` : '—'}
-                </div>
-              </div>
-              <ChevronRight size={18} className="flex-none" style={{ color: 'var(--muted)' }} />
-            </Link>
+            <CollectionRow key={col.id} col={col} />
           ))}
         </div>
       )}

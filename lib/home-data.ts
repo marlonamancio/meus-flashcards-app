@@ -42,6 +42,9 @@ export type CollectionSummary = {
   soft: string
   cardCount: number
   accuracyPct: number | null
+  // null = coleção "raiz" (sem mãe); preenchido = coleção-filha de uma sub-coleção de um nível só
+  // (CLAUDE.md item 4 "Sub-coleções"). Usado por ColecoesView para agrupar visualmente a lista.
+  parentId: string | null
 }
 
 // A failed query (missing table, RLS denial, network error) must not be mistaken for "no rows
@@ -204,7 +207,7 @@ export async function getBadges(
 export async function getCollections(supabase: SupabaseClient, userId: string): Promise<CollectionSummary[]> {
   const { data: collections, error: collectionsError } = await supabase
     .from('collections')
-    .select('id, nome, criado_em')
+    .select('id, nome, criado_em, parent_id')
     .eq('user_id', userId)
     .order('criado_em', { ascending: false })
 
@@ -260,6 +263,7 @@ export async function getCollections(supabase: SupabaseClient, userId: string): 
       soft: palette.soft,
       cardCount: cardIds.length,
       accuracyPct: total > 0 ? Math.round((correct / total) * 100) : null,
+      parentId: (c.parent_id as string | null) ?? null,
     }
   })
 }

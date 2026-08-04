@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { COLLECTION_PALETTE, assertNoError, initials } from '@/lib/home-data'
+import { COLLECTION_PALETTE, assertNoError, initials, type CollectionSummary } from '@/lib/home-data'
 
 export type CollectionOption = {
   id: string
@@ -7,12 +7,31 @@ export type CollectionOption = {
 }
 
 // Cheap {id, nome} listing for destination pickers (upload/CSV import) — avoids the
-// accuracy/card-count aggregation getCollections() does, which isn't needed here.
+// accuracy/card-count aggregation getCollections() does, which isn't needed here. Deliberately
+// unaware of hierarchy (sub-coleções) — destination pickers always create/target top-level
+// collections; setting a mãe is a separate action (setCollectionParentAction).
 export async function getCollectionOptions(supabase: SupabaseClient, userId: string): Promise<CollectionOption[]> {
   const { data, error } = await supabase
     .from('collections')
     .select('id, nome')
     .eq('user_id', userId)
+    .order('nome', { ascending: true })
+
+  assertNoError(error, 'collections')
+  return data ?? []
+}
+
+// Eligible targets for "Agrupar em..." (setCollectionParentAction) — only collections without a
+// mãe of their own qualify, since sub-coleções support one level only (CLAUDE.md item 4). This is
+// the same rule the server action re-validates before writing (never trust the client-side
+// filtering alone), but filtering here means the picker UI never even offers an invalid choice.
+export async function getEligibleParentOptions(supabase: SupabaseClient, userId: string, excludeId: string): Promise<CollectionOption[]> {
+  const { data, error } = await supabase
+    .from('collections')
+    .select('id, nome')
+    .eq('user_id', userId)
+    .is('parent_id', null)
+    .neq('id', excludeId)
     .order('nome', { ascending: true })
 
   assertNoError(error, 'collections')
@@ -60,6 +79,12 @@ type CollectionMeta = {
   // about the WHOLE collection (e.g. getDueMap for the "estudar" button) must use this, not
   // `cards.map(c => c.id)`, which on CollectionOverview is only the current page.
   cardIds: string[]
+  // Sub-coleções (CLAUDE.md item 4), one level only. null = esta é uma coleção raiz (pode ou não
+  // ter filhas). Preenchido = esta é uma filha; nesse caso `children` abaixo é sempre [] (uma
+  // filha nunca tem filhas, regra de um nível só).
+  parentId: string | null
+  parentNome: string | null
+  children: CollectionSummary[]
 }
 
 export type CollectionDetail = CollectionMeta & { cards: CollectionCard[] }
@@ -218,6 +243,78 @@ export async function getCollectionCardIds(supabase: SupabaseClient, userId: str
   return (data ?? []).map((l) => l.flashcard_id as string)
 }
 
+// Child collections of a mãe, with the same per-collection card-count/accuracy shape used
+// everywhere else (CollectionSummary) — reused by the /colecoes list to render each child row
+// inside its mãe's expandable header. Sub-coleções are one level only (CLAUDE.md item 4), so a
+// child collection never itself has children — this is only ever called for a (potential) mãe.
+async function getChildCollections(supabase: SupabaseClient, userId: string, parentId: string): Promise<CollectionSummary[]> {
+  const { data: children, error: childrenError } = await supabase
+    .from('collections')
+    .select('id, nome, criado_em')
+    .eq('user_id', userId)
+    .eq('parent_id', parentId)
+    .order('criado_em', { ascending: true })
+
+  assertNoError(childrenError, 'collections')
+  if (!children || children.length === 0) return []
+
+  const childIds = children.map((c) => c.id as string)
+
+  const { data: links, error: linksError } = await supabase
+    .from('collection_flashcards')
+    .select('collection_id, flashcard_id')
+    .in('collection_id', childIds)
+
+  assertNoError(linksError, 'collection_flashcards')
+
+  const cardsByChild = new Map<string, string[]>()
+  for (const l of links ?? []) {
+    const list = cardsByChild.get(l.collection_id) ?? []
+    list.push(l.flashcard_id)
+    cardsByChild.set(l.collection_id, list)
+  }
+
+  const allFlashcardIds = Array.from(new Set((links ?? []).map((l) => l.flashcard_id as string)))
+  const { data: responses, error: responsesError } =
+    allFlashcardIds.length > 0
+      ? await supabase.from('flashcard_responses').select('flashcard_id, acertou').eq('user_id', userId).in('flashcard_id', allFlashcardIds)
+      : { data: [] as { flashcard_id: string; acertou: boolean }[], error: null }
+
+  assertNoError(responsesError, 'flashcard_responses')
+
+  const accuracyByFlashcard = new Map<string, { correct: number; total: number }>()
+  for (const r of responses ?? []) {
+    const entry = accuracyByFlashcard.get(r.flashcard_id) ?? { correct: 0, total: 0 }
+    entry.total += 1
+    if (r.acertou) entry.correct += 1
+    accuracyByFlashcard.set(r.flashcard_id, entry)
+  }
+
+  return children.map((c, i) => {
+    const cardIds = cardsByChild.get(c.id) ?? []
+    let correct = 0
+    let total = 0
+    for (const id of cardIds) {
+      const entry = accuracyByFlashcard.get(id)
+      if (entry) {
+        correct += entry.correct
+        total += entry.total
+      }
+    }
+    const palette = COLLECTION_PALETTE[i % COLLECTION_PALETTE.length]
+    return {
+      id: c.id,
+      nome: c.nome,
+      short: initials(c.nome),
+      color: palette.color,
+      soft: palette.soft,
+      cardCount: cardIds.length,
+      accuracyPct: total > 0 ? Math.round((correct / total) * 100) : null,
+      parentId,
+    }
+  })
+}
+
 // Collection metadata + collection-wide accuracy — shared by getCollectionDetail (full cards) and
 // getCollectionOverview (paginated cards), so the lookup/palette/aggregate-stats logic isn't
 // duplicated between them. Palette/short-initials assignment mirrors getCollections() in
@@ -230,13 +327,27 @@ async function getCollectionMeta(
 ): Promise<{ meta: CollectionMeta; accuracyByFlashcard: Map<string, { correct: number; total: number }> } | null> {
   const { data: collection, error: collectionError } = await supabase
     .from('collections')
-    .select('id, nome')
+    .select('id, nome, parent_id')
     .eq('id', collectionId)
     .eq('user_id', userId)
     .maybeSingle()
 
   assertNoError(collectionError, 'collections')
   if (!collection) return null
+
+  const parentId = (collection.parent_id as string | null) ?? null
+
+  // A child never has children of its own (one level only), so children is only ever fetched for
+  // a (potential) mãe — skip the query entirely for a collection that already has a parent.
+  const [parentLookup, children] = await Promise.all([
+    parentId
+      ? supabase.from('collections').select('nome').eq('id', parentId).eq('user_id', userId).maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    parentId ? Promise.resolve([]) : getChildCollections(supabase, userId, collectionId),
+  ])
+
+  assertNoError(parentLookup.error, 'collections')
+  const parentNome = (parentLookup.data?.nome as string | undefined) ?? null
 
   const { data: allCollections, error: allCollectionsError } = await supabase
     .from('collections')
@@ -296,6 +407,9 @@ async function getCollectionMeta(
       errorPct: total > 0 ? Math.round(((total - correct) / total) * 100) : null,
       reviewCount: total,
       cardIds: flashcardIds,
+      parentId,
+      parentNome,
+      children,
     },
     accuracyByFlashcard,
   }
