@@ -18,6 +18,17 @@ export async function recordStudyResponseAction(flashcardId: string, rating: num
   const supabase = await createClient()
   const user = await requireUser(supabase)
 
+  // Ownership check before writing anything for this flashcardId — without it, a card belonging
+  // to another user could get a flashcard_responses row and flashcard_schedule state written
+  // under this user's own id (never leaks the other user's data since every read elsewhere
+  // already filters flashcards by user_id, but it's still an unverified cross-user reference this
+  // action shouldn't create). See security audit finding on this action.
+  const { data: card, error: cardError } = await supabase.from('flashcards').select('id').eq('id', flashcardId).eq('user_id', user.id).maybeSingle()
+
+  if (cardError || !card) {
+    return { ok: false, error: 'Card não encontrado.' }
+  }
+
   // The response itself is the record that matters — insert it before touching the SM-2
   // schedule or the streak/goal/badge bookkeeping below, so a bug or transient failure in either
   // can never cause an answer to go unsaved. `acertou` stays a simple derived boolean (rating >=

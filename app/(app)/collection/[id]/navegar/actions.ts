@@ -35,6 +35,36 @@ export async function updateFlashcardAction(
     return { ok: false, error: 'Preencha a frente e o verso do card.' }
   }
 
+  // Explicit ownership check before touching anything — an `.update()` whose filter matches zero
+  // rows (e.g. flashcardId belongs to another user) still returns `error: null` from Supabase, so
+  // relying on updateError alone here would silently let a foreign flashcardId fall through to
+  // the collection_flashcards insert below instead of being rejected. See security audit finding
+  // on this action (IDOR: card de outro usuário linkável à sua coleção).
+  const { data: card, error: cardError } = await supabase
+    .from('flashcards')
+    .select('id')
+    .eq('id', flashcardId)
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (cardError || !card) {
+    return { ok: false, error: 'Card não encontrado.' }
+  }
+
+  // Same reasoning for currentCollectionId — RLS's DELETE policy already scopes the unlink step
+  // below to collections the caller owns, but the app shouldn't rely on that alone (CLAUDE.md
+  // "não confiar só na RLS").
+  const { data: currentCollection, error: currentCollectionError } = await supabase
+    .from('collections')
+    .select('id')
+    .eq('id', currentCollectionId)
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (currentCollectionError || !currentCollection) {
+    return { ok: false, error: 'Coleção atual não encontrada.' }
+  }
+
   const { error: updateError } = await supabase
     .from('flashcards')
     .update({ frente: trimmedFrente, verso: trimmedVerso })
