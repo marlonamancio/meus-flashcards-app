@@ -315,7 +315,7 @@ Sem limite de geração por usuário/dia na v1, mesmo com cadastro público (ami
 
 **Cuidado conhecido — Service Worker em dev**: o registro do service worker deve rodar apenas em produção (`process.env.NODE_ENV === 'production'`). Em dev com Turbopack, hot reload reescreve o mesmo chunk CSS/JS sob a mesma URL — uma estratégia cache-first (segura em produção, onde assets são content-hashed) serve uma versão desatualizada indefinidamente em dev, causando sintomas enganosos (estilo "sumindo", layout quebrado) que parecem bug de Tailwind/CSS mas são cache do service worker. Se isso acontecer: DevTools → Application → Service Workers → Unregister, depois hard refresh.
 
-**Ícones do PWA (correção pendente)**: os ícones de instalação (192x192, 512x512) ainda são placeholders genéricos (quadrado laranja liso), não a logo real do app. Devem ser gerados a partir do mesmo `LogoMark` (as duas quadrados rotacionados sobrepostos) já usado no header/login, não um ícone novo desenhado à parte — manter consistência visual entre o ícone instalado e a marca usada dentro do app. Incluir também uma versão "maskable" (com área de segurança/padding, já que Android recorta o ícone em formas variadas).
+**Ícones do PWA (resolvido)**: `public/icons/` já tem os três ícones gerados a partir do `LogoMark` (os dois quadrados rotacionados sobrepostos), não placeholders genéricos — confirmado visualmente, incluindo a versão maskable com padding de área de segurança. Nota anterior aqui estava desatualizada.
 
 **Performance:**
 - Lazy loading de rotas/componentes pesados
