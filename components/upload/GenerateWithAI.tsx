@@ -3,10 +3,10 @@
 import { useEffect, useRef, useState, type ChangeEvent, type CSSProperties } from 'react'
 import { Loader2, Sparkles, Upload as UploadIcon } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { materialTipoFromFile } from '@/lib/extraction/material-tipo'
+import { materialTipoFromFile, MAX_MATERIAL_BYTES } from '@/lib/extraction/material-tipo'
 import { sanitizeFileName } from '@/lib/sanitize-filename'
 import { registerMaterialAction, generateFromMaterialAction, generateFromThemeAction } from '@/app/(app)/upload/actions'
-import type { Quantidade, GeneratedCard } from '@/lib/generation/types'
+import { MAX_TEMA_LENGTH, type Quantidade, type GeneratedCard } from '@/lib/generation/types'
 import type { CollectionOption } from '@/lib/collections-data'
 import { Alert } from '@/components/ui/Alert'
 import { QuantidadePicker } from '@/components/upload/QuantidadePicker'
@@ -25,7 +25,6 @@ type Source = 'arquivo' | 'tema'
 
 const ACCEPTED = '.pdf,.jpg,.jpeg,.png,.webp,.docx,.pptx'
 const MATERIAL_COLUMNS = 'id, status, cards_gerados, erro_mensagem'
-const MAX_MATERIAL_BYTES = 20 * 1024 * 1024
 const MATERIALS_BUCKET = 'materiais'
 const POLLING_STATUSES: MaterialStatus[] = ['processando', 'gerando']
 
@@ -242,10 +241,14 @@ export function GenerateWithAI({ userId, collections }: { userId: string; collec
             onChange={(e) => setTema(e.target.value)}
             placeholder="Ex: Princípios do Direito Administrativo"
             rows={3}
+            maxLength={MAX_TEMA_LENGTH}
             disabled={isBusy}
             className="w-full text-sm rounded-[14px]"
             style={{ marginTop: 14, padding: '13px 14px', background: 'var(--surface)', border: '1.5px solid var(--border)', color: 'var(--text)', resize: 'vertical' }}
           />
+          <div className="text-right text-[11px]" style={{ marginTop: 4, color: 'var(--muted)' }}>
+            {tema.length}/{MAX_TEMA_LENGTH}
+          </div>
           <Alert style={{ marginTop: 10 }}>
             Cards gerados por tema livre não têm fonte de referência sua e podem conter imprecisões da IA — merecem revisão
             mais atenta que os gerados a partir de material enviado.

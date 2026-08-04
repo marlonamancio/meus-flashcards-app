@@ -8,6 +8,10 @@ const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingm
 const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
 const IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 
+// Shared by the client-side size check (before upload) and registerMaterialAction's server-side
+// re-check against the file's actual size in Storage (CLAUDE.md "Limites de arquivo").
+export const MAX_MATERIAL_BYTES = 20 * 1024 * 1024
+
 // Browsers/OS don't always report a precise MIME type for Office files, so extension is checked
 // as a fallback alongside it, never instead of it (an attacker-controlled filename alone can't
 // force a mismatched extractor onto file content whose MIME the browser already flagged).

@@ -7,7 +7,7 @@ import { sanitizeExtractedText } from './sanitize'
 import type { ExtractedContent, MaterialTipo } from './types'
 
 export type { ExtractedContent, ExtractionMethod, MaterialTipo } from './types'
-export { materialTipoFromFile } from './material-tipo'
+export { materialTipoFromFile, MAX_MATERIAL_BYTES } from './material-tipo'
 
 export async function extractContent(buffer: Buffer, tipo: MaterialTipo, mimeType: string): Promise<ExtractedContent> {
   const result = await extractByTipo(buffer, tipo, mimeType)

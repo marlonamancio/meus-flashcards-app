@@ -3,6 +3,7 @@ import { generateFlashcardsFromContent, selectBestCards } from './tool'
 import type { GeneratedCard, Quantidade } from './types'
 
 export type { GeneratedCard, Quantidade } from './types'
+export { MAX_TEMA_LENGTH, MIN_MANUAL_QUANTIDADE, MAX_MANUAL_QUANTIDADE } from './types'
 export { generateFlashcardsFromTheme } from './tool'
 
 // Below this, the material's whole extracted text comfortably fits in a single generation call.

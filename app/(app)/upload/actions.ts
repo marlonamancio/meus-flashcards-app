@@ -4,12 +4,35 @@ import { parse } from 'csv-parse/sync'
 import { after } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireUser } from '@/lib/supabase/require-user'
-import { extractContent, materialTipoFromFile } from '@/lib/extraction'
-import { generateFlashcardsFromMaterial, generateFlashcardsFromTheme, type Quantidade, type GeneratedCard } from '@/lib/generation'
+import { extractContent, materialTipoFromFile, MAX_MATERIAL_BYTES } from '@/lib/extraction'
+import {
+  generateFlashcardsFromMaterial,
+  generateFlashcardsFromTheme,
+  MAX_TEMA_LENGTH,
+  MIN_MANUAL_QUANTIDADE,
+  MAX_MANUAL_QUANTIDADE,
+  type Quantidade,
+  type GeneratedCard,
+} from '@/lib/generation'
 import type { DestinationValue } from '@/components/upload/DestinationPicker'
 
 const MAX_CSV_BYTES = 5 * 1024 * 1024
 const MATERIALS_BUCKET = 'materiais'
+
+// Bounds imported from lib/generation/types.ts (MAX_TEMA_LENGTH, MIN/MAX_MANUAL_QUANTIDADE) —
+// shared with the client-side picker/textarea (QuantidadePicker.tsx, GenerateWithAI.tsx) so UX
+// and server enforcement can't drift apart. The client clamp is UX only; this server-side
+// revalidation is what actually protects anything, since a Server Action can be invoked directly
+// (DevTools/curl with a valid session cookie), bypassing the picker entirely.
+function validateQuantidade(quantidade: Quantidade): { ok: true } | { ok: false; error: string } {
+  if (quantidade.type === 'automatico') return { ok: true }
+
+  if (!Number.isInteger(quantidade.count) || quantidade.count < MIN_MANUAL_QUANTIDADE || quantidade.count > MAX_MANUAL_QUANTIDADE) {
+    return { ok: false, error: `A quantidade deve ser um número inteiro entre ${MIN_MANUAL_QUANTIDADE} e ${MAX_MANUAL_QUANTIDADE}.` }
+  }
+
+  return { ok: true }
+}
 
 export type ImportSummary = {
   importedCount: number
@@ -199,7 +222,25 @@ export async function registerMaterialAction(input: RegisterMaterialInput): Prom
     return { ok: false, error: 'Caminho de arquivo inválido.' }
   }
 
-  const tipo = materialTipoFromFile(mimeType, nome)
+  // Defense in depth: the "materiais" bucket is configured (manually, via Dashboard) with a
+  // 20 MB size limit and a MIME-type allowlist, but that config isn't verifiable from code and
+  // isn't a substitute for the app checking for itself — re-verify against the file Storage
+  // actually received instead of just trusting bucket config to have already blocked anything
+  // out of bounds. `mimeType` from the action's own input is what the client CLAIMS the file is;
+  // `fileInfo.contentType` is what Storage recorded when the file was actually uploaded — using
+  // the latter to derive `tipo` means a caller can't just lie about mimeType in a direct call to
+  // this action while pointing at a storagePath that holds something else entirely.
+  const { data: fileInfo, error: infoError } = await supabase.storage.from(MATERIALS_BUCKET).info(storagePath)
+
+  if (infoError || !fileInfo) {
+    return { ok: false, error: 'Não foi possível verificar o arquivo enviado.' }
+  }
+  if (fileInfo.size !== undefined && fileInfo.size > MAX_MATERIAL_BYTES) {
+    await supabase.storage.from(MATERIALS_BUCKET).remove([storagePath])
+    return { ok: false, error: `O arquivo excede o limite de ${Math.round(MAX_MATERIAL_BYTES / 1024 / 1024)} MB.` }
+  }
+
+  const tipo = materialTipoFromFile(fileInfo.contentType ?? mimeType, nome)
   if (!tipo) {
     await supabase.storage.from(MATERIALS_BUCKET).remove([storagePath])
     return { ok: false, error: 'Formato não suportado. Envie PDF, imagem (JPEG/PNG/WEBP), Word (.docx) ou PowerPoint (.pptx).' }
@@ -286,6 +327,11 @@ export async function generateFromMaterialAction(materialId: string, quantidade:
     return { ok: false, error: 'Material não tem conteúdo extraído.' }
   }
 
+  const quantidadeCheck = validateQuantidade(quantidade)
+  if (!quantidadeCheck.ok) {
+    return quantidadeCheck
+  }
+
   const { error: updateError } = await supabase.from('materials').update({ status: 'gerando' }).eq('id', materialId)
   if (updateError) {
     return { ok: false, error: 'Não foi possível iniciar a geração.' }
@@ -317,6 +363,14 @@ export async function generateFromThemeAction(tema: string, quantidade: Quantida
   const trimmedTema = tema.trim()
   if (!trimmedTema) {
     return { ok: false, error: 'Descreva um tema.' }
+  }
+  if (trimmedTema.length > MAX_TEMA_LENGTH) {
+    return { ok: false, error: `O tema deve ter no máximo ${MAX_TEMA_LENGTH} caracteres.` }
+  }
+
+  const quantidadeCheck = validateQuantidade(quantidade)
+  if (!quantidadeCheck.ok) {
+    return quantidadeCheck
   }
 
   const { data: material, error: insertError } = await supabase
