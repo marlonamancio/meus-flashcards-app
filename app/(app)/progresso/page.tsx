@@ -2,8 +2,8 @@ import { AlertTriangle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { requireUser } from '@/lib/supabase/require-user'
 import { getDisplayFirstName, getUserAvatarPalette } from '@/lib/user-display'
-import { getCollections, getOverallStats, getWeekActivity } from '@/lib/home-data'
-import { getGlobalWeakCards } from '@/lib/progresso-data'
+import { getOverallStats, getWeekActivity } from '@/lib/home-data'
+import { getProgressoData } from '@/lib/progresso-data'
 import { getCollectionProgressDisplay, withChildAggregates } from '@/lib/collection-progress'
 import { AppShell } from '@/components/layout/AppShell'
 import { Header } from '@/components/layout/Header'
@@ -17,12 +17,12 @@ export default async function ProgressoPage() {
   const displayName = getDisplayFirstName(user)
   const avatarPalette = getUserAvatarPalette(user)
 
-  const [overall, week, collections, weakCards] = await Promise.all([
+  const [overall, week, progresso] = await Promise.all([
     getOverallStats(supabase, user.id),
     getWeekActivity(supabase, user.id),
-    getCollections(supabase, user.id),
-    getGlobalWeakCards(supabase, user.id),
+    getProgressoData(supabase, user.id),
   ])
+  const { collections, weakCards } = progresso
 
   // "Evolução por coleção" mostra desempenho/precisão — uma mãe não tem desempenho próprio (só
   // agrega subcoleções visualmente), então fica de fora daqui (CLAUDE.md item 5, "Decisão final —

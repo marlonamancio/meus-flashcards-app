@@ -1,8 +1,8 @@
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
-import { COLLECTION_PALETTE, initials } from '@/lib/palette'
+import { initials, paletteForCollectionId } from '@/lib/palette'
 
-export { COLLECTION_PALETTE, initials }
+export { initials }
 
 const WEEK_LABELS = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'] // Segunda a Domingo
 
@@ -243,7 +243,7 @@ export async function getCollections(supabase: SupabaseClient, userId: string): 
     cardsByCollection.set(l.collection_id, list)
   }
 
-  return collections.map((c, i) => {
+  return collections.map((c) => {
     const cardIds = cardsByCollection.get(c.id) ?? []
     let correct = 0
     let total = 0
@@ -254,7 +254,7 @@ export async function getCollections(supabase: SupabaseClient, userId: string): 
         total += entry.total
       }
     }
-    const palette = COLLECTION_PALETTE[i % COLLECTION_PALETTE.length]
+    const palette = paletteForCollectionId(c.id)
     return {
       id: c.id,
       nome: c.nome,
@@ -270,11 +270,15 @@ export async function getCollections(supabase: SupabaseClient, userId: string): 
 
 export async function getHomeData(userId: string) {
   const supabase = await createClient()
-  const stats = await getUserStats(supabase, userId)
-  const [week, badges, collections] = await Promise.all([
+  // Only getBadges actually depends on stats (it needs streakRecorde) — getWeekActivity and
+  // getCollections don't, so they no longer wait behind a sequential getUserStats call before
+  // starting (see CLAUDE.md performance audit, "getHomeData parcialmente sequencial"). Home is
+  // the most-visited screen, so this runs on effectively every app open.
+  const [stats, week, collections] = await Promise.all([
+    getUserStats(supabase, userId),
     getWeekActivity(supabase, userId),
-    getBadges(supabase, userId, stats),
     getCollections(supabase, userId),
   ])
+  const badges = await getBadges(supabase, userId, stats)
   return { stats, week, badges, collections }
 }

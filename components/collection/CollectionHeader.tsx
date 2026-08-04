@@ -5,12 +5,12 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Check, MoreVertical } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import type { CollectionDetail, CollectionOption } from '@/lib/collections-data'
+import type { CollectionOverview, CollectionOption } from '@/lib/collections-data'
 import { setCollectionParentAction } from '@/app/(app)/collection/[id]/actions'
 import { Modal } from '@/components/ui/Modal'
 import { Alert } from '@/components/ui/Alert'
 
-export function CollectionHeader({ collection, eligibleParents }: { collection: CollectionDetail; eligibleParents: CollectionOption[] }) {
+export function CollectionHeader({ collection, eligibleParents }: { collection: CollectionOverview; eligibleParents: CollectionOption[] }) {
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
   const [renameOpen, setRenameOpen] = useState(false)

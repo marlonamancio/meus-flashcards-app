@@ -4,6 +4,12 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // The dev-mode "N" badge isn't part of the design and overlaps the bottom nav's FAB.
   devIndicators: false,
+  // `next dev` auto-detects AI coding agents (via env vars like CLAUDECODE) and rewrites
+  // CLAUDE.md/AGENTS.md with its own managed instructions block on every startup where the
+  // block is missing/stale — confirmed by reproducing it live (see git history/session notes).
+  // This project's CLAUDE.md is hand-maintained project documentation, not meant to carry that
+  // block, so the auto-injection is disabled here instead of fighting it on every dev restart.
+  agentRules: false,
   turbopack: {
     // Pins the workspace root explicitly instead of relying on Turbopack's lockfile-based
     // inference, which started misfiring after the Next 16.3.0 upgrade ("Next.js inferred your

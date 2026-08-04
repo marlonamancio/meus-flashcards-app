@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { COLLECTION_PALETTE, assertNoError, initials, type CollectionSummary } from '@/lib/home-data'
+import { assertNoError, initials, type CollectionSummary } from '@/lib/home-data'
+import { paletteForCollectionId } from '@/lib/palette'
 
 export type CollectionOption = {
   id: string
@@ -62,9 +63,11 @@ export type CollectionCardsPage = {
 
 export const COLLECTION_CARDS_PAGE_SIZE = 40
 
-// Shared by getCollectionDetail (full cards — study/browse need every card, not just a page) and
-// getCollectionOverview (paginated — the /collection/[id] list screen). Collection-wide by
-// definition, so never affected by the card list's pagination.
+// Shared only by getCollectionOverview now (the /collection/[id] list screen, the one place that
+// actually renders accuracy, review count and hierarchy) — Estudar/Navegar use the much lighter
+// CollectionLite below instead (see CollectionDetail), since neither ever displays any of this
+// (confirmed via full-text search of StudySession.tsx/BrowseSession.tsx before this split — see
+// CLAUDE.md performance audit, "over-fetching em getCollectionMeta").
 type CollectionMeta = {
   id: string
   nome: string
@@ -87,7 +90,24 @@ type CollectionMeta = {
   children: CollectionSummary[]
 }
 
-export type CollectionDetail = CollectionMeta & { cards: CollectionCard[] }
+// Just the display fields Estudar/Navegar actually render (collection avatar + name) — no
+// accuracy, review count, cardCount or hierarchy, since neither StudySession nor BrowseSession
+// ever reads those.
+type CollectionLite = {
+  id: string
+  nome: string
+  short: string
+  color: string
+  soft: string
+}
+
+// No per-card accuracyPct either — that field exists on CollectionCard for the paginated list
+// screen (CollectionCardsList), which is the only place it's rendered; computing it here would
+// mean fetching every response ever given to every card in the collection, same cost this split
+// exists to avoid.
+type LiteCard = { id: string; frente: string; verso: string }
+
+export type CollectionDetail = CollectionLite & { cards: LiteCard[] }
 
 export type CollectionOverview = CollectionMeta & { cards: CollectionCard[]; nextCursor: CardsCursor | null }
 
@@ -290,7 +310,7 @@ async function getChildCollections(supabase: SupabaseClient, userId: string, par
     accuracyByFlashcard.set(r.flashcard_id, entry)
   }
 
-  return children.map((c, i) => {
+  return children.map((c) => {
     const cardIds = cardsByChild.get(c.id) ?? []
     let correct = 0
     let total = 0
@@ -301,7 +321,7 @@ async function getChildCollections(supabase: SupabaseClient, userId: string, par
         total += entry.total
       }
     }
-    const palette = COLLECTION_PALETTE[i % COLLECTION_PALETTE.length]
+    const palette = paletteForCollectionId(c.id)
     return {
       id: c.id,
       nome: c.nome,
@@ -315,11 +335,11 @@ async function getChildCollections(supabase: SupabaseClient, userId: string, par
   })
 }
 
-// Collection metadata + collection-wide accuracy — shared by getCollectionDetail (full cards) and
-// getCollectionOverview (paginated cards), so the lookup/palette/aggregate-stats logic isn't
-// duplicated between them. Palette/short-initials assignment mirrors getCollections() in
-// home-data.ts (index in the same criado_em-desc ordering) so a collection's avatar color matches
-// between the list and its detail page.
+// Collection metadata + collection-wide accuracy for getCollectionOverview (the /collection/[id]
+// list screen — the only caller left since getCollectionDetail below stopped needing any of
+// this). Palette is a deterministic hash of the collection's own id (lib/palette.ts), not a
+// position in some ordering — same color everywhere the collection appears, without ever having
+// to fetch the user's other collections just to compute an index.
 async function getCollectionMeta(
   supabase: SupabaseClient,
   userId: string,
@@ -349,19 +369,7 @@ async function getCollectionMeta(
   assertNoError(parentLookup.error, 'collections')
   const parentNome = (parentLookup.data?.nome as string | undefined) ?? null
 
-  const { data: allCollections, error: allCollectionsError } = await supabase
-    .from('collections')
-    .select('id')
-    .eq('user_id', userId)
-    .order('criado_em', { ascending: false })
-
-  assertNoError(allCollectionsError, 'collections')
-
-  const index = Math.max(
-    (allCollections ?? []).findIndex((c) => c.id === collectionId),
-    0
-  )
-  const palette = COLLECTION_PALETTE[index % COLLECTION_PALETTE.length]
+  const palette = paletteForCollectionId(collection.id)
 
   const { data: links, error: linksError } = await supabase
     .from('collection_flashcards')
@@ -415,17 +423,39 @@ async function getCollectionMeta(
   }
 }
 
-// FULL card list (no pagination) — study mode and browse mode both need to operate over every
-// card in the collection, not just a page of it (study needs every due card regardless of where
-// it falls in the list; browse navigates the whole collection front-to-back). Only the
+// FULL card list (no pagination), lightweight metadata only — Navegar needs every card's
+// frente/verso, since browsing goes front-to-back across the whole collection, but never renders
+// accuracy, review count or hierarchy (verified against BrowseSession.tsx — see CLAUDE.md
+// performance audit, "over-fetching em getCollectionMeta"). Estudar stopped using this (see
+// getCollectionStudyMeta/getFlashcardsByIds below) — a study session only ever touches the cards
+// actually due today, so fetching the other however-many-hundred cards' content here would be
+// exactly the over-fetching this split exists to avoid (CLAUDE.md "Decisão adicional — Estudar
+// deve buscar só o conteúdo dos cards vencidos"). Deliberately independent of
+// getCollectionMeta/getCollectionOverview below: no children/parent lookup, no accuracy
+// computation (which would mean fetching every response ever given to every card in the
+// collection), no extra query to place the collection in some ordering for its color. Only the
 // /collection/[id] list SCREEN is paginated (getCollectionOverview below) — that's the one
 // CLAUDE.md's "Performance — paginação" is actually about.
 export async function getCollectionDetail(supabase: SupabaseClient, userId: string, collectionId: string): Promise<CollectionDetail | null> {
-  const result = await getCollectionMeta(supabase, userId, collectionId)
-  if (!result) return null
-  const { meta, accuracyByFlashcard } = result
+  const { data: collection, error: collectionError } = await supabase
+    .from('collections')
+    .select('id, nome')
+    .eq('id', collectionId)
+    .eq('user_id', userId)
+    .maybeSingle()
 
-  if (meta.cardIds.length === 0) {
+  assertNoError(collectionError, 'collections')
+  if (!collection) return null
+
+  const palette = paletteForCollectionId(collection.id)
+  const meta: CollectionLite = { id: collection.id, nome: collection.nome, short: initials(collection.nome), color: palette.color, soft: palette.soft }
+
+  const { data: links, error: linksError } = await supabase.from('collection_flashcards').select('flashcard_id').eq('collection_id', collectionId)
+
+  assertNoError(linksError, 'collection_flashcards')
+
+  const flashcardIds = (links ?? []).map((l) => l.flashcard_id as string)
+  if (flashcardIds.length === 0) {
     return { ...meta, cards: [] }
   }
 
@@ -435,19 +465,46 @@ export async function getCollectionDetail(supabase: SupabaseClient, userId: stri
   const { data: flashcards, error: flashcardsError } = await supabase
     .from('flashcards')
     .select('id, frente, verso')
-    .in('id', meta.cardIds)
+    .in('id', flashcardIds)
     .eq('user_id', userId)
     .order('criado_em', { ascending: true })
     .order('id', { ascending: true })
 
   assertNoError(flashcardsError, 'flashcards')
 
-  const cards: CollectionCard[] = (flashcards ?? []).map((f) => {
-    const entry = accuracyByFlashcard.get(f.id)
-    return { id: f.id, frente: f.frente, verso: f.verso, accuracyPct: entry && entry.total > 0 ? Math.round((entry.correct / entry.total) * 100) : null }
-  })
+  return { ...meta, cards: (flashcards ?? []) as LiteCard[] }
+}
 
-  return { ...meta, cards }
+// Estudar-only: collection avatar/name with NO card content at all — the caller fetches content
+// separately (getFlashcardsByIds below), scoped to only the ids actually due today instead of
+// the whole collection like getCollectionDetail legitimately does for Navegar. See CLAUDE.md
+// "Decisão adicional — Estudar deve buscar só o conteúdo dos cards vencidos".
+export async function getCollectionStudyMeta(supabase: SupabaseClient, userId: string, collectionId: string): Promise<CollectionLite | null> {
+  const { data: collection, error } = await supabase
+    .from('collections')
+    .select('id, nome')
+    .eq('id', collectionId)
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  assertNoError(error, 'collections')
+  if (!collection) return null
+
+  const palette = paletteForCollectionId(collection.id)
+  return { id: collection.id, nome: collection.nome, short: initials(collection.nome), color: palette.color, soft: palette.soft }
+}
+
+// Content for an already-known, specific set of flashcard ids — Estudar's counterpart to the
+// full-collection fetch inside getCollectionDetail. No ordering applied: callers that care about
+// order (Estudar's due-priority queue) already have their own id ordering and only use this for
+// an id -> {frente, verso} lookup.
+export async function getFlashcardsByIds(supabase: SupabaseClient, userId: string, ids: string[]): Promise<LiteCard[]> {
+  if (ids.length === 0) return []
+
+  const { data, error } = await supabase.from('flashcards').select('id, frente, verso').in('id', ids).eq('user_id', userId)
+
+  assertNoError(error, 'flashcards')
+  return (data ?? []) as LiteCard[]
 }
 
 // Paginated version of the above for the /collection/[id] list screen (CLAUDE.md "Performance —

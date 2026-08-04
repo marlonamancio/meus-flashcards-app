@@ -126,7 +126,10 @@ export type ApplySuggestedMovesResult = {
 // back exactly the {flashcardId, collectionId} pairs it currently shows a suggestion chip for.
 // Each move is independent: a failure on one card (e.g. the collection was deleted moments ago)
 // never undoes or hides the ones that already succeeded — see CLAUDE.md item 9, "Aplicar todas as
-// sugestões".
+// sugestões". Ownership of every card/collection involved is verified in ONE round trip each
+// (`.in()`), and every valid link is written in a single batched upsert, instead of the old
+// per-card loop (up to 3 sequential queries × N cards) — see CLAUDE.md performance audit, "N+1
+// em applySuggestedMovesAction".
 export async function applySuggestedMovesAction(moves: { flashcardId: string; collectionId: string }[]): Promise<ApplySuggestedMovesResult> {
   const supabase = await createClient()
   const user = await requireUser(supabase)
@@ -139,15 +142,65 @@ export async function applySuggestedMovesAction(moves: { flashcardId: string; co
     }
   }
 
+  if (moves.length === 0) {
+    return { ok: true, moved: [], failed: [] }
+  }
+
+  const flashcardIds = Array.from(new Set(moves.map((m) => m.flashcardId)))
+  const collectionIds = Array.from(new Set(moves.map((m) => m.collectionId)))
+
+  const [{ data: ownedCards, error: cardsError }, { data: ownedCollections, error: collectionsError }] = await Promise.all([
+    supabase.from('flashcards').select('id').eq('user_id', user.id).in('id', flashcardIds),
+    supabase.from('collections').select('id, nome').eq('user_id', user.id).in('id', collectionIds),
+  ])
+
+  if (cardsError || collectionsError) {
+    return {
+      ok: true,
+      moved: [],
+      failed: moves.map((m) => ({ flashcardId: m.flashcardId, error: 'Não foi possível verificar os cards e coleções.' })),
+    }
+  }
+
+  const ownedCardIds = new Set((ownedCards ?? []).map((c) => c.id as string))
+  const collectionNameById = new Map((ownedCollections ?? []).map((c) => [c.id as string, c.nome as string]))
+
   const moved: { flashcardId: string; collectionName: string }[] = []
   const failed: { flashcardId: string; error: string }[] = []
+  const validMoves: { flashcardId: string; collectionId: string; collectionName: string }[] = []
 
   for (const { flashcardId, collectionId } of moves) {
-    const result = await linkCardToExistingCollection(supabase, user.id, flashcardId, collectionId)
-    if (result.ok) {
-      moved.push({ flashcardId, collectionName: result.collectionName })
+    if (!ownedCardIds.has(flashcardId)) {
+      failed.push({ flashcardId, error: 'Card não encontrado.' })
+      continue
+    }
+    const collectionName = collectionNameById.get(collectionId)
+    if (!collectionName) {
+      failed.push({ flashcardId, error: 'Não foi possível encontrar a coleção selecionada.' })
+      continue
+    }
+    validMoves.push({ flashcardId, collectionId, collectionName })
+  }
+
+  if (validMoves.length > 0) {
+    // ignoreDuplicates instead of a plain insert: if a card somehow already has this exact link
+    // (e.g. the suggestion was applied twice), that row is a harmless no-op instead of an error
+    // that would otherwise fail the whole batch and wrongly mark every other card as failed too.
+    const { error: linkError } = await supabase
+      .from('collection_flashcards')
+      .upsert(
+        validMoves.map((m) => ({ collection_id: m.collectionId, flashcard_id: m.flashcardId })),
+        { onConflict: 'collection_id,flashcard_id', ignoreDuplicates: true }
+      )
+
+    if (linkError) {
+      for (const m of validMoves) {
+        failed.push({ flashcardId: m.flashcardId, error: `Não foi possível vincular o card à coleção "${m.collectionName}".` })
+      }
     } else {
-      failed.push({ flashcardId, error: result.error })
+      for (const m of validMoves) {
+        moved.push({ flashcardId: m.flashcardId, collectionName: m.collectionName })
+      }
     }
   }
 
