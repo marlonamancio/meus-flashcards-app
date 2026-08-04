@@ -51,6 +51,10 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|icons/|manifest.json|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    // robots.txt must stay reachable without a session — a crawler never authenticates, so
+    // without this exclusion the auth redirect below sends it to /login instead of the actual
+    // `Disallow: /` rules (see CLAUDE.md "SEO — indexação bloqueada temporariamente"), silently
+    // defeating the block instead of enforcing it.
+    '/((?!_next/static|_next/image|favicon.ico|icons/|manifest.json|robots.txt|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

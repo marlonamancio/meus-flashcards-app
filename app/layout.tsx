@@ -20,6 +20,13 @@ export const metadata: Metadata = {
     statusBarStyle: 'default',
     title: 'Meus Flashcards AI',
   },
+  // Indexação bloqueada de propósito enquanto o app está em teste restrito ao círculo de amigos
+  // — ver CLAUDE.md "SEO — indexação bloqueada temporariamente". Reverter (junto com
+  // app/robots.ts) antes de divulgar publicamente.
+  robots: {
+    index: false,
+    follow: false,
+  },
 }
 
 export const viewport: Viewport = {

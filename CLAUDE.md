@@ -332,6 +332,14 @@ Sem limite de geração por usuário/dia na v1, mesmo com cadastro público (ami
 - HTTPS obrigatório (padrão em Vercel/Supabase, mas deixar explícito)
 - Sanitização de conteúdo extraído de arquivos antes de renderizar (evitar XSS via conteúdo de PDF/imagem malformado)
 
+## SEO — indexação bloqueada temporariamente (decisão consciente)
+
+Enquanto o app estiver em teste restrito ao círculo de amigos, **indexação por buscadores está bloqueada de propósito** — não é acidente nem falta de configuração. Duas camadas aplicadas juntas:
+- Meta tag `robots: noindex, nofollow` em todo o site (via Metadata API do Next.js no layout raiz)
+- `robots.txt` com `Disallow: /` (via `app/robots.ts`, suportado nativamente pelo App Router)
+
+**Reverter quando for abrir para divulgação mais ampla**: remover/ajustar a configuração de `robots` no metadata e o `Disallow` do `robots.txt` — mudança pequena e rápida, não uma reestruturação. Lembrar de fazer isso antes de divulgar publicamente, senão o site nunca aparece em buscas mesmo depois de "lançado" de verdade.
+
 ## Autenticação
 
 Mesmo sendo uso restrito a uma única usuário por enquanto, a autenticação entra desde a v1 por questões de privacidade e segurança dos dados (material de estudo pode incluir conteúdo sensível/pessoal).
