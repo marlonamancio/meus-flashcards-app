@@ -6,36 +6,10 @@ import { useRouter } from 'next/navigation'
 import { ChevronDown, ChevronRight, Inbox, Plus, Search } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { CollectionSummary } from '@/lib/home-data'
+import { getCollectionProgressDisplay, withChildAggregates, type CollectionWithAggregate } from '@/lib/collection-progress'
 import { HeaderTitle } from '@/components/layout/HeaderTitle'
+import { CollectionListItem } from '@/components/collections/CollectionListItem'
 import { Alert } from '@/components/ui/Alert'
-
-// One row's markup, reused for a solo (parentless, childless) collection and for a child rendered
-// inside its mãe's expanded group — same visual style as the flat list always had.
-function CollectionRow({ col, indent }: { col: CollectionSummary; indent?: boolean }) {
-  return (
-    <Link
-      href={`/collection/${col.id}`}
-      className="flex items-center gap-[14px] rounded-[16px]"
-      style={{ padding: 13, marginLeft: indent ? 18 : 0, background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}
-    >
-      <div
-        className="flex-none flex items-center justify-center rounded-[12px] text-[15px] font-bold"
-        style={{ width: 44, height: 44, background: col.soft, color: col.color }}
-      >
-        {col.short}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-[14.5px] font-semibold truncate" style={{ letterSpacing: '-0.01em' }}>
-          {col.nome}
-        </div>
-        <div className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
-          {col.cardCount} card{col.cardCount === 1 ? '' : 's'} · {col.accuracyPct !== null ? `${col.accuracyPct}%` : '—'}
-        </div>
-      </div>
-      <ChevronRight size={18} className="flex-none" style={{ color: 'var(--muted)' }} />
-    </Link>
-  )
-}
 
 export function ColecoesView({
   collections,
@@ -63,11 +37,16 @@ export function ColecoesView({
     })
   }
 
+  // Aggregate once (childCount + own-vs-total cardCount) — shared with Home/Progresso via
+  // lib/collection-progress.ts (CLAUDE.md item 5) so the mãe/vazia decision can't drift out of
+  // sync between screens again.
+  const enriched = useMemo(() => withChildAggregates(collections), [collections])
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return collections
-    return collections.filter((c) => c.nome.toLowerCase().includes(q))
-  }, [collections, query])
+    if (!q) return enriched
+    return enriched.filter((c) => c.nome.toLowerCase().includes(q))
+  }, [enriched, query])
 
   // Sub-coleções (CLAUDE.md item 4): agrupamento visual mãe → filhas, um nível só. Ativo apenas
   // sem busca — uma busca ativa quebra o agrupamento de propósito (mostra o resultado plano,
@@ -76,9 +55,9 @@ export function ColecoesView({
   const grouped = useMemo(() => {
     if (query.trim()) return null
 
-    const childrenByParent = new Map<string, CollectionSummary[]>()
-    const roots: CollectionSummary[] = []
-    for (const c of collections) {
+    const childrenByParent = new Map<string, CollectionWithAggregate[]>()
+    const roots: CollectionWithAggregate[] = []
+    for (const c of enriched) {
       if (c.parentId) {
         const list = childrenByParent.get(c.parentId) ?? []
         list.push(c)
@@ -88,7 +67,7 @@ export function ColecoesView({
       }
     }
     return { roots, childrenByParent }
-  }, [collections, query])
+  }, [enriched, query])
 
   function closeCreate() {
     setCreateOpen(false)
@@ -221,10 +200,10 @@ export function ColecoesView({
           <div className="flex flex-col gap-[9px]">
             {grouped.roots.map((col) => {
               const children = grouped.childrenByParent.get(col.id) ?? []
-              if (children.length === 0) return <CollectionRow key={col.id} col={col} />
+              if (children.length === 0) return <CollectionListItem key={col.id} collection={col} />
 
               const isExpanded = !collapsed.has(col.id)
-              const totalCardCount = col.cardCount + children.reduce((sum, c) => sum + c.cardCount, 0)
+              const display = getCollectionProgressDisplay(col) // childCount > 0 here, so always 'parent'
 
               return (
                 <div key={col.id}>
@@ -240,9 +219,11 @@ export function ColecoesView({
                         <div className="text-[14.5px] font-semibold truncate" style={{ letterSpacing: '-0.01em' }}>
                           {col.nome}
                         </div>
-                        <div className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
-                          {totalCardCount} card{totalCardCount === 1 ? '' : 's'} · {children.length} subcoleç{children.length === 1 ? 'ão' : 'ões'}
-                        </div>
+                        {display.kind === 'parent' && (
+                          <div className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
+                            {display.cardCount} card{display.cardCount === 1 ? '' : 's'} · {display.childCount} subcoleç{display.childCount === 1 ? 'ão' : 'ões'}
+                          </div>
+                        )}
                       </div>
                     </Link>
                     <button
@@ -258,7 +239,7 @@ export function ColecoesView({
                   {isExpanded && (
                     <div className="flex flex-col gap-[9px]" style={{ marginTop: 9 }}>
                       {children.map((child) => (
-                        <CollectionRow key={child.id} col={child} indent />
+                        <CollectionListItem key={child.id} collection={child} indent />
                       ))}
                     </div>
                   )}
@@ -277,7 +258,7 @@ export function ColecoesView({
       ) : (
         <div className="flex flex-col gap-[9px]">
           {filtered.map((col) => (
-            <CollectionRow key={col.id} col={col} />
+            <CollectionListItem key={col.id} collection={col} />
           ))}
         </div>
       )}

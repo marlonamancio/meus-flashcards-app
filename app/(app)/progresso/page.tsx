@@ -4,6 +4,7 @@ import { requireUser } from '@/lib/supabase/require-user'
 import { getDisplayFirstName, getUserAvatarPalette } from '@/lib/user-display'
 import { getCollections, getOverallStats, getWeekActivity } from '@/lib/home-data'
 import { getGlobalWeakCards } from '@/lib/progresso-data'
+import { getCollectionProgressDisplay, withChildAggregates } from '@/lib/collection-progress'
 import { AppShell } from '@/components/layout/AppShell'
 import { Header } from '@/components/layout/Header'
 import { HeaderBrand } from '@/components/layout/HeaderBrand'
@@ -23,7 +24,16 @@ export default async function ProgressoPage() {
     getGlobalWeakCards(supabase, user.id),
   ])
 
-  const evolvedCollections = collections.filter((c): c is typeof c & { accuracyPct: number } => c.accuracyPct !== null)
+  // "Evolução por coleção" mostra desempenho/precisão — uma mãe não tem desempenho próprio (só
+  // agrega subcoleções visualmente), então fica de fora daqui (CLAUDE.md item 5, "Decisão final —
+  // coleção-mãe fora da lista de evolução no Progresso"). Home e Coleções continuam mostrando
+  // mães normalmente (propósito de navegação, não de medição) — só esta seção filtra, e reaproveita
+  // a mesma getCollectionProgressDisplay usada nas outras telas em vez de reimplementar "é mãe"
+  // aqui. Cardless leaves continuam aparecendo, mostrando "—" (já corrigido antes).
+  const evolutionItems = withChildAggregates(collections).flatMap((collection) => {
+    const display = getCollectionProgressDisplay(collection)
+    return display.kind === 'leaf' ? [{ collection, display }] : []
+  })
   const weekTotal = week.reduce((sum, d) => sum + d.cardsRevisados, 0)
   const maxDay = Math.max(1, ...week.map((d) => d.cardsRevisados))
 
@@ -106,16 +116,16 @@ export default async function ProgressoPage() {
       <h2 className="text-[14.5px] font-bold" style={{ margin: '24px 0 12px' }}>
         Evolução por coleção
       </h2>
-      {evolvedCollections.length === 0 ? (
+      {evolutionItems.length === 0 ? (
         <div
           className="rounded-2xl text-center"
           style={{ padding: '28px 16px', background: 'var(--surface)', border: '1px dashed var(--border)', color: 'var(--muted)', fontSize: 13.5 }}
         >
-          Nenhuma coleção com revisões ainda.
+          Nenhuma coleção ainda.
         </div>
       ) : (
         <div className="flex flex-col gap-[10px]">
-          {evolvedCollections.map((c) => (
+          {evolutionItems.map(({ collection: c, display }) => (
             <div
               key={c.id}
               className="rounded-[14px]"
@@ -131,16 +141,18 @@ export default async function ProgressoPage() {
                 <div className="flex-1 min-w-0">
                   <div className="text-[13.5px] font-semibold truncate">{c.nome}</div>
                   <div className="text-[11px] mt-px" style={{ color: 'var(--muted)' }}>
-                    {c.cardCount} card{c.cardCount === 1 ? '' : 's'}
+                    {display.cardCount} card{display.cardCount === 1 ? '' : 's'}
                   </div>
                 </div>
                 <span className="text-[15px] font-bold flex-none" style={{ color: c.color }}>
-                  {c.accuracyPct}%
+                  {display.accuracyPct !== null ? `${display.accuracyPct}%` : '—'}
                 </span>
               </div>
-              <div className="rounded-full overflow-hidden" style={{ height: 6, background: 'var(--surface-2)', marginTop: 11 }}>
-                <div className="h-full rounded-full" style={{ background: c.color, width: `${c.accuracyPct}%` }} />
-              </div>
+              {display.cardCount > 0 && (
+                <div className="rounded-full overflow-hidden" style={{ height: 6, background: 'var(--surface-2)', marginTop: 11 }}>
+                  <div className="h-full rounded-full" style={{ background: c.color, width: `${display.accuracyPct ?? 0}%` }} />
+                </div>
+              )}
             </div>
           ))}
         </div>

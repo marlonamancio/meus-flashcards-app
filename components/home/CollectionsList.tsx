@@ -1,8 +1,11 @@
 import Link from 'next/link'
-import { ChevronRight } from 'lucide-react'
 import type { CollectionSummary } from '@/lib/home-data'
+import { withChildAggregates } from '@/lib/collection-progress'
+import { CollectionListItem } from '@/components/collections/CollectionListItem'
 
 export function CollectionsList({ collections }: { collections: CollectionSummary[] }) {
+  const withAggregates = withChildAggregates(collections)
+
   return (
     <div>
       <div className="flex justify-between items-baseline" style={{ margin: '26px 0 12px' }}>
@@ -31,43 +34,8 @@ export function CollectionsList({ collections }: { collections: CollectionSummar
         </div>
       ) : (
         <div className="flex flex-col gap-[9px]">
-          {collections.map((col) => (
-            <Link
-              key={col.id}
-              href={`/collection/${col.id}`}
-              className="flex items-center gap-[14px] rounded-[16px]"
-              style={{
-                padding: 13,
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                boxShadow: 'var(--shadow)',
-              }}
-            >
-              <div
-                className="flex-none flex items-center justify-center rounded-[12px] text-[15px] font-bold"
-                style={{ width: 44, height: 44, background: col.soft, color: col.color }}
-              >
-                {col.short}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-[14.5px] font-semibold truncate" style={{ letterSpacing: '-0.01em' }}>
-                  {col.nome}
-                </div>
-                <div className="flex items-center gap-2 mt-1.5">
-                  <div className="flex-1 rounded-full overflow-hidden" style={{ height: 5, background: 'var(--surface-2)' }}>
-                    <div
-                      className="h-full rounded-full"
-                      style={{ width: `${col.accuracyPct ?? 0}%`, background: col.color }}
-                    />
-                  </div>
-                  <span className="text-[11.5px] font-semibold flex-none" style={{ color: 'var(--muted)' }}>
-                    {col.cardCount} card{col.cardCount === 1 ? '' : 's'}
-                    {col.accuracyPct !== null ? ` · ${col.accuracyPct}%` : ''}
-                  </span>
-                </div>
-              </div>
-              <ChevronRight size={18} className="flex-none" style={{ color: 'var(--muted)' }} />
-            </Link>
+          {withAggregates.map((col) => (
+            <CollectionListItem key={col.id} collection={col} showBar />
           ))}
         </div>
       )}
