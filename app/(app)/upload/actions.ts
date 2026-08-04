@@ -240,7 +240,7 @@ export type RegisterMaterialInput = {
 }
 
 // The file itself never touches this action — it is uploaded client-side straight to Supabase
-// Storage first (see ExtractionDebug.tsx), because routing it through a Server Action/Route
+// Storage first (see GenerateWithAI.tsx), because routing it through a Server Action/Route
 // Handler here hits a real Node/undici bug: `request.formData()` throws "Failed to parse body as
 // FormData" for multipart bodies as small as ~11 MB, well under the 20 MB this app needs to
 // support (reproduced identically in both a Server Action and a plain Route Handler — it is a
