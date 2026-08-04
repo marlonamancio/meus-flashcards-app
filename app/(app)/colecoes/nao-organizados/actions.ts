@@ -9,6 +9,12 @@ import type { DestinationValue } from '@/components/upload/DestinationPicker'
 
 export type SuggestCollectionsResult = { ok: true; suggestions: CollectionSuggestion[] } | { ok: false; error: string }
 
+// Sanity ceiling for applySuggestedMovesAction's `moves` array — the real UI never sends more
+// than however many orphan cards the user actually has (bounded by suggestCollectionsAction's own
+// result), but a direct call bypassing the "Aplicar todas" button shouldn't be able to submit an
+// artificially huge array.
+const MAX_APPLY_MOVES = 500
+
 // Re-reads orphan cards + collections from the DB instead of trusting whatever the client
 // currently has in state — avoids suggesting against a stale list, and it's still exactly one
 // batch call regardless (CLAUDE.md item 9: "uma única chamada em lote").
@@ -124,6 +130,14 @@ export type ApplySuggestedMovesResult = {
 export async function applySuggestedMovesAction(moves: { flashcardId: string; collectionId: string }[]): Promise<ApplySuggestedMovesResult> {
   const supabase = await createClient()
   const user = await requireUser(supabase)
+
+  if (moves.length > MAX_APPLY_MOVES) {
+    return {
+      ok: true,
+      moved: [],
+      failed: moves.map((m) => ({ flashcardId: m.flashcardId, error: `Muitos cards de uma vez (máximo ${MAX_APPLY_MOVES}).` })),
+    }
+  }
 
   const moved: { flashcardId: string; collectionName: string }[] = []
   const failed: { flashcardId: string; error: string }[] = []

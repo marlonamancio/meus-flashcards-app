@@ -19,6 +19,12 @@ import type { DestinationValue } from '@/components/upload/DestinationPicker'
 const MAX_CSV_BYTES = 5 * 1024 * 1024
 const MATERIALS_BUCKET = 'materiais'
 
+// Sanity ceiling for the reviewed-cards array a client can submit in one call — generous above
+// the largest real generation observed (166 cards from a 130-page material, pre prompt-refinement
+// — see CLAUDE.md "Formato do prompt de geração de flashcards"), but still bounded against a
+// direct call (bypassing the review UI) submitting an artificially huge array.
+const MAX_SAVE_CARDS = 500
+
 // Bounds imported from lib/generation/types.ts (MAX_TEMA_LENGTH, MIN/MAX_MANUAL_QUANTIDADE) —
 // shared with the client-side picker/textarea (QuantidadePicker.tsx, GenerateWithAI.tsx) so UX
 // and server enforcement can't drift apart. The client clamp is UX only; this server-side
@@ -52,6 +58,32 @@ function detectDelimiter(text: string): ',' | ';' {
   return semicolonCount > commaCount ? ';' : ','
 }
 
+// Cheap structural check before handing the file to csv-parse — catches an obviously non-CSV
+// file (ex: an image/PDF renamed to .csv) without needing real MIME sniffing. Binary content
+// decoded as text typically contains NUL bytes or a high ratio of non-printable control
+// characters; real CSV/text files essentially never do. Only inspects a small sample, so it stays
+// cheap even at the 5 MB size ceiling.
+function looksLikeCsv(text: string): boolean {
+  const sample = text.slice(0, 4000)
+  if (sample.length === 0) return false
+  if (sample.includes('\u0000')) return false
+
+  let controlCharCount = 0
+  for (let i = 0; i < sample.length; i++) {
+    const code = sample.charCodeAt(i)
+    // Tab/newline/carriage-return are normal in text files — anything else below 0x20, plus the
+    // 0x7F DEL character, is the kind of byte that shows up when binary content gets decoded as
+    // text.
+    if ((code < 0x20 && code !== 9 && code !== 10 && code !== 13) || code === 0x7f) {
+      controlCharCount++
+    }
+  }
+  if (controlCharCount / sample.length > 0.01) return false
+
+  const firstLine = sample.split(/\r?\n/, 1)[0] ?? ''
+  return firstLine.includes(',') || firstLine.includes(';')
+}
+
 export async function importCsvAction(formData: FormData): Promise<ImportCsvResult> {
   const supabase = await createClient()
   const user = await requireUser(supabase)
@@ -73,6 +105,11 @@ export async function importCsvAction(formData: FormData): Promise<ImportCsvResu
 
   const rawText = await file.text()
   const cleanedText = rawText.startsWith('﻿') ? rawText.slice(1) : rawText
+
+  if (!looksLikeCsv(cleanedText)) {
+    return { ok: false, error: 'O arquivo não parece ser um CSV válido.' }
+  }
+
   const delimiter = detectDelimiter(cleanedText)
 
   let records: string[][]
@@ -425,6 +462,10 @@ export async function saveReviewedCardsAction(
 ): Promise<SaveReviewResult> {
   const supabase = await createClient()
   const user = await requireUser(supabase)
+
+  if (cards.length > MAX_SAVE_CARDS) {
+    return { ok: false, error: `Muitos cards de uma vez (máximo ${MAX_SAVE_CARDS}).` }
+  }
 
   const cleaned = cards.map((c) => ({ frente: c.frente.trim(), verso: c.verso.trim() }))
   if (cleaned.length === 0) {
