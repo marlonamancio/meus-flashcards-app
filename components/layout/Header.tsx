@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import Link from 'next/link'
+import { Search } from 'lucide-react'
 import { ThemeToggleButton } from '@/components/layout/ThemeToggleButton'
 import type { AvatarPalette } from '@/lib/palette'
 
@@ -30,6 +31,14 @@ export function Header({
     <div className="flex justify-between items-center" style={{ padding: '8px 0 4px' }}>
       <div className="min-w-0 flex-1">{children}</div>
       <div className="flex items-center gap-2.5 flex-none">
+        <Link
+          href="/buscar"
+          aria-label="Buscar"
+          className="flex items-center justify-center rounded-full flex-none"
+          style={{ width: 42, height: 42, background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)' }}
+        >
+          <Search size={20} strokeWidth={1.9} />
+        </Link>
         <ThemeToggleButton />
         {avatarHref ? (
           <Link

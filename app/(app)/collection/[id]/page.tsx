@@ -102,13 +102,12 @@ export default async function CollectionPage({ params }: { params: Promise<{ id:
       )}
 
       {!isPureParent && (
-        <>
-          <div className="flex justify-between items-baseline" style={{ margin: '22px 0 11px' }}>
-            <h2 className="text-[14.5px] font-bold">Cards</h2>
-            <span className="text-xs" style={{ color: 'var(--muted)' }}>{collection.cardCount}</span>
-          </div>
-          <CollectionCardsList collectionId={collection.id} initialCards={collection.cards} initialNextCursor={collection.nextCursor} />
-        </>
+        <CollectionCardsList
+          collectionId={collection.id}
+          cardCount={collection.cardCount}
+          initialCards={collection.cards}
+          initialNextCursor={collection.nextCursor}
+        />
       )}
     </AppShell>
   )

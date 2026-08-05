@@ -97,11 +97,42 @@ Criar flashcards manualmente é o principal atrito que impede o uso consistente 
     - **Edição do card (v1, adicionado após uso real)**: ícone de editar no header da tela de navegação, alterna pra modo edição mostrando frente/verso como campos editáveis (mesmo padrão visual da tela de revisão pós-geração), com salvar/cancelar. Salvar faz `UPDATE` direto em `flashcards.frente`/`flashcards.verso` — **não** toca em `flashcard_responses` nem `flashcard_schedule`, mesmo isolamento do SM-2 já garantido pro resto desse modo. Confirmar que a policy de `UPDATE` em `flashcards` já existe (deveria, já que o padrão do projeto é RLS+policy+grant completo por tabela desde o início) antes de assumir que só falta a UI.
     - **Trocar a coleção do card (v1, adicionado após uso real)**: no mesmo modo de edição, campo adicional pra mudar a coleção — reaproveitar um seletor no mesmo espírito do `DestinationPicker` (coleção existente diferente da atual, criar nova, ou remover da coleção — cai em "não organizados"). Como um card pode pertencer a mais de uma coleção (many-to-many), essa ação afeta **só o vínculo com a coleção de onde o modo de navegação foi aberto** (`/collection/[id]/navegar/[cardId]`) — remove o vínculo com essa coleção específica e cria o vínculo novo, sem mexer em outros vínculos que o card eventualmente já tenha com outras coleções. Mesmo isolamento do SM-2: só mexe em `collection_flashcards`, nada de `flashcard_responses`/`flashcard_schedule`. Se o card mudar de coleção, ao salvar a navegação deve sair da coleção antiga (o card não pertence mais a ela) — decidir se volta pra lista da coleção original ou já mostra a nova, o que fizer mais sentido no fluxo.
 
+12. **Busca global (cards + coleções)** (feedback real de usuárias — reclamação de não conseguir achar um card específico; desenho revisado para melhor descoberta)
+    - **Ícone de lupa no cabeçalho comum** (Home, Coleções, Progresso, Perfil — onde já existem toggle de tema + avatar), não escondida dentro de uma aba específica. Não aparece nos headers de fluxo focado (Upload, Estudar, Navegar), que usam `BackHeader` — busca ali seria distração num fluxo de tarefa.
+    - Toca no ícone → abre `/buscar`, rota dedicada com `BackHeader` ("← Buscar"), campo de texto com foco automático
+    - Busca em duas fontes ao mesmo tempo: nome de coleção e conteúdo de card (`frente`/`verso`), via `ILIKE` (trecho simples, não precisa de full-text search sofisticado no volume atual) — resultados em seções separadas ("Coleções" / "Cards")
+    - Cada resultado de card mostra o texto (trecho) + nome da coleção a que pertence (breadcrumb "Matéria > Aula" se for sub-coleção)
+    - Tocar num resultado de card abre no **modo de navegação** já existente (reaproveitar, não criar caminho novo — mantém o isolamento do SM-2 de graça); tocar num resultado de coleção abre a coleção normalmente
+    - Debounce na digitação (não buscar a cada tecla)
+    - Resultados paginados/limitados, mesmo padrão "carregar mais" já usado na lista de cards da coleção
+    - **Não confundir com o campo "Buscar coleção" que já existe dentro da tela `/colecoes`** — esse continua existindo, mas é um filtro local simples (client-side, só filtra a lista de coleções já carregada na tela, sem chamada ao servidor) — propósito diferente da busca global nova (que consulta o servidor e cobre conteúdo de card também). Os dois convivem sem conflito.
+    - **Acesso também pelo modo de navegação (browse) — busca CONTEXTUAL local, não server-side** — dor mais concreta relatada: coleção com centenas de cards, precisa rolar tudo pra achar um específico pra editar. Correção de desenho: como o modo de navegação **já carrega o conteúdo (frente/verso) de todos os cards da coleção em memória** (decisão anterior, necessária pra navegação funcionar), a busca aqui deve ser um **filtro local instantâneo** sobre esse array já carregado — sem chamada ao servidor, sem navegar pra `/buscar`. Campo de busca aparece na própria tela de navegação (expandível a partir do ícone de lupa no `BackHeader`), filtra o array em memória a cada tecla (com debounce leve só por suavidade visual, não por necessidade de custo), e ao selecionar um resultado pula direto pro card certo dentro do mesmo carrossel — nunca sai da tela. Mais barato e mais rápido que rotear pra busca global, porque o dado já está no cliente.
+    - **Busca também na tela de detalhe da coleção (`/collection/[id]`, a listagem paginada de cards)** — pedido adicional, mesmo motivo (coleção grande, rolar até achar). **Diferença técnica importante em relação ao Navegar**: essa tela é **paginada de propósito** (decisão da auditoria de performance — só carrega um lote por vez, "Carregar mais"), então **não** tem todos os cards em memória. Filtro local aqui seria incompleto/confuso (não acharia cards ainda não paginados). Solução certa: busca **server-side escopada**, reaproveitando a mesma `searchCards` já implementada pra busca global, só filtrada por `collectionId` — não duplicar lógica de busca, só adicionar o parâmetro de escopo. Ícone de busca na própria tela (perto do cabeçalho "Cards"/contagem), expande um campo que dispara a busca escopada com debounce, substituindo a lista paginada normal enquanto a busca estiver ativa (com jeito claro de limpar e voltar à listagem normal). Selecionar um resultado abre o modo de navegação nesse card, mesmo comportamento já usado na busca global.
+
+## Roadmap v2 (sequência priorizada)
+
+Ordem pensada por dependência técnica e valor pra usuária, não é obrigatória mas é a lógica atual:
+
+1. **FSRS** (em planejamento) — evolução direta do SM-2 já existente, reaproveita a arquitetura de agendamento já construída e testada
+2. **"Melhorar com IA" no modo de edição** — pequeno, reaproveita 100% da infraestrutura de IA já pronta
+3. **Upload de foto de avatar** — pequeno, isolado
+4. **Notificações push** — médio, alto valor de retenção de hábito
+5. **Compartilhar coleções** — maior escopo, mas arquitetura já desenhada em detalhe (ver abaixo)
+6. **Interleaving entre coleções** — mais estrutural, depende de repensar o conceito de "sessão"
+7. **Timezone configurável, exportar CSV, coluna de coleção no CSV** — baixa urgência, construir quando aparecer necessidade real de uso (mesmo princípio que guiou a v1: feedback real antes de código)
+
+Descartado/baixa prioridade, não planejar por ora: imagens geradas por IA nos cards, dashboard avançado, multilíngue, cards cloze/múltipla escolha, formato nativo Anki/Quizlet.
+
 ## Fora de escopo (v1) — decisões conscientes
 
 - **Timezone configurável por usuário** — v1 usa timezone fixo em código (`America/Sao_Paulo`) para toda lógica de "dia" (streak, meta diária, daily_activity), já que é usuário única no Brasil. Um campo de timezone no Perfil, lido dinamicamente em vez de fixo, fica para v2 (relevante se o app escalar para mais usuários em fusos diferentes). Fixar agora não bloqueia essa evolução depois — troca uma constante por uma leitura de configuração, a lógica de cálculo de "dia" em si permanece a mesma.
 - **Upload de foto real como avatar** — v1 permite só escolher cor/estilo do avatar de iniciais (sem imagem). Upload de foto de verdade fica para v2, quando fizer sentido configurar um bucket dedicado no Supabase Storage para isso.
-- **FSRS — algoritmo mais preciso que SM-2, evolução futura.** SM-2 já foi puxado para v1 (ver item 6 "Modo de estudo"). FSRS fica para v2: modela dificuldade/estabilidade/retrievability por card de forma mais precisa que a fórmula fixa do SM-2, tipicamente exigindo menos revisões para o mesmo nível de retenção. Existe biblioteca de referência oficial em TypeScript (`ts-fsrs`) que evita reimplementar a matemática do zero — trocar a "engine" de cálculo sem precisar mudar o resto da arquitetura (schema de agendamento já criado para SM-2 é compatível em espírito).
+- **FSRS — algoritmo mais preciso que SM-2 (planejamento em andamento).** Modela dificuldade/estabilidade/retrievability por card de forma mais precisa que a fórmula fixa do SM-2, tipicamente exigindo menos revisões para o mesmo nível de retenção. Biblioteca oficial `ts-fsrs` (TypeScript) faz o cálculo, sem reimplementar a matemática.
+  - **Rating não muda**: FSRS usa o mesmo padrão de 4 níveis (Again/Hard/Good/Easy) já implementado como "Não lembrei/Foi difícil/Fui bem/Fácil demais" — zero mudança na UI de estudo.
+  - **Substituição completa da engine, não coexistência**: `lib/sm2.ts` fica obsoleto, substituído por `lib/fsrs.ts` — não manter os dois algoritmos ativos ao mesmo tempo.
+  - **Reset total do progresso (decisão final, mesmo padrão do lançamento do SM-2)**: todo card começa do zero no FSRS — não tentar converter `repetitions`/`interval_days`/`ease_factor` do SM-2 em estado inicial do FSRS (modelos matematicamente diferentes, conversão aproximada traria mais risco que benefício). Migration reseta `flashcard_schedule`.
+  - **Pesos padrão (globais), não personalizados**: usar os pesos calibrados pela pesquisa original do FSRS, não os otimizados a partir do histórico de respostas do app — personalização via otimizador próprio do FSRS fica como possível refinamento futuro (os dados de `rating` já vêm sendo coletados desde o SM-2, então essa porta continua aberta depois, sem trabalho perdido).
+  - **Novo schema de `flashcard_schedule`** (substituindo colunas específicas do SM-2), alinhado ao formato nativo do `ts-fsrs` pra mapeamento direto sem conversão manual: `due` (data), `stability`, `difficulty`, `elapsed_days`, `scheduled_days`, `reps`, `lapses`, `state` (novo/aprendendo/revisão/reaprendendo), `last_review` (nullable). RLS/policy/grant seguem o mesmo padrão de sempre.
 - **Interleaving entre coleções diferentes** — v1 embaralha os cards vencidos dentro de uma mesma coleção (uma sessão de estudo é sempre de uma coleção só). Misturar cards de coleções diferentes numa sessão única (ex: revisar Direito Constitucional e Português juntos, intercalados) tem respaldo científico (reduz ainda mais decoreba por contexto/tópico), mas fica para v2 — exige repensar o que significa "sessão" (não mais por coleção) e provavelmente uma tela de "revisão geral do dia" separada de "estudar uma coleção específica".
 - YouTube ou áudio como fonte de material
 - Exportação para Anki, Quizlet, etc, ou importação de formatos nativos desses apps (ex: .apkg) — a importação via CSV genérico já cobre o caso de uso real (trazer cards já criados), sem precisar suportar formato proprietário de terceiros
@@ -315,7 +346,7 @@ Sem limite de geração por usuário/dia na v1, mesmo com cadastro público (ami
 
 **Cuidado conhecido — Service Worker em dev**: o registro do service worker deve rodar apenas em produção (`process.env.NODE_ENV === 'production'`). Em dev com Turbopack, hot reload reescreve o mesmo chunk CSS/JS sob a mesma URL — uma estratégia cache-first (segura em produção, onde assets são content-hashed) serve uma versão desatualizada indefinidamente em dev, causando sintomas enganosos (estilo "sumindo", layout quebrado) que parecem bug de Tailwind/CSS mas são cache do service worker. Se isso acontecer: DevTools → Application → Service Workers → Unregister, depois hard refresh.
 
-**Ícones do PWA (resolvido)**: `public/icons/` já tem os três ícones gerados a partir do `LogoMark` (os dois quadrados rotacionados sobrepostos), não placeholders genéricos — confirmado visualmente, incluindo a versão maskable com padding de área de segurança. Nota anterior aqui estava desatualizada.
+**Ícones do PWA (correção pendente)**: os ícones de instalação (192x192, 512x512) ainda são placeholders genéricos (quadrado laranja liso), não a logo real do app. Devem ser gerados a partir do mesmo `LogoMark` (as duas quadrados rotacionados sobrepostos) já usado no header/login, não um ícone novo desenhado à parte — manter consistência visual entre o ícone instalado e a marca usada dentro do app. Incluir também uma versão "maskable" (com área de segurança/padding, já que Android recorta o ícone em formas variadas).
 
 **Performance:**
 - Lazy loading de rotas/componentes pesados
@@ -442,7 +473,9 @@ Correções já aplicadas: `loading.tsx` nas 5 rotas principais (Next.js cobre s
 
 **Estilo do indicador de loading (revisado — versão inicial ficou sutil demais)**: a primeira versão usava o componente `Alert` no topo da página, que passava despercebido em transições rápidas. Trocar para um indicador bem mais central e visível: overlay sobre a área de conteúdo (abaixo do header, acima da bottom nav — **mantém navegação e header visíveis**, decisão consciente já tomada antes para evitar sensação de "sumiço"), com spinner grande e centralizado verticalmente na área de conteúdo, fundo levemente esmaecido por trás.
 
-**Não-urgente, registrado sem correção**: `getCollections` e `getGlobalWeakCards` buscam todas as `flashcard_responses` do usuário sem filtrar pelo escopo — cresce linearmente com o histórico de revisões, revisitar quando o volume justificar.
+**Resolvido (auditoria ampliada)**: `getGlobalWeakCards` foi removida (consolidada em `getProgressoData`, que busca `collections`/`flashcard_responses` uma única vez e deriva tanto "Evolução por coleção" quanto "Onde você mais erra" do mesmo dado, eliminando a duplicação). `getCollectionMeta`/`getCollectionDetail` (usada por Estudar e Navegar) não computa mais acurácia/histórico desnecessário nem faz a query extra de paleta por índice de lista — cor calculada por hash determinístico do id da coleção (`lib/palette.ts`), como bônus corrigiu inconsistência de cor da mesma coleção variando por tela.
+
+**Decisão adicional — Estudar deve buscar só o conteúdo dos cards vencidos, não da coleção inteira**: `getCollectionDetail` (reaproveitada por Estudar e Navegar) busca frente/verso de todos os cards da coleção, mesmo quando só uma fração está vencida no dia. Correto para Navegar (precisa da coleção inteira), desperdício para Estudar. Decisão: separar os dois caminhos — Estudar busca o conteúdo (frente/verso) só dos cards presentes na fila de vencidos (`getDueMap`/ids já calculados), não da coleção inteira; Navegar continua buscando tudo, como precisa.
 
 ## Performance — paginação da lista de cards da coleção
 
@@ -495,13 +528,3 @@ A **API admin** do Supabase (`auth.admin.createUser`, `auth.admin.updateUserById
 ## Idioma
 
 Responda sempre em português do Brasil, com acentuação e cedilha corretas em todo texto (comentários, mensagens de commit, explicações). Não omita acentos mesmo em respostas longas ou após compactação de contexto.
-
-<!-- BEGIN:nextjs-agent-rules -->
-
-# This is NOT the Next.js you know
-
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
-
-This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
-
-<!-- END:nextjs-agent-rules -->

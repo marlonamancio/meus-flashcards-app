@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { requireUser } from '@/lib/supabase/require-user'
 import { getCollectionCardsPage, type CardsCursor, type CollectionCardsPage } from '@/lib/collections-data'
+import { searchCards, type SearchCardsPage, type SearchCursor } from '@/lib/search-data'
 
 export type LoadMoreCardsResult = { ok: true; page: CollectionCardsPage } | { ok: false; error: string }
 
@@ -17,6 +18,29 @@ export async function loadMoreCardsAction(collectionId: string, cursor: CardsCur
   }
 
   const page = await getCollectionCardsPage(supabase, user.id, collectionId, cursor)
+  return { ok: true, page }
+}
+
+export type SearchCollectionCardsResult = { ok: true; page: SearchCardsPage } | { ok: false; error: string }
+
+// Scoped search for the collection detail screen (CLAUDE.md item 12, "Busca também na tela de
+// detalhe da coleção") — this list is paginated on purpose (never holds every card in memory), so
+// a client-side filter would miss cards not yet loaded. Reuses searchCards (same function the
+// global /buscar search calls) with scopeCollectionId set, instead of duplicating search logic.
+export async function searchCollectionCardsAction(collectionId: string, query: string, cursor: SearchCursor | null): Promise<SearchCollectionCardsResult> {
+  const trimmed = query.trim()
+  if (!trimmed) return { ok: true, page: { results: [], nextCursor: null } }
+
+  const supabase = await createClient()
+  const user = await requireUser(supabase)
+
+  const { data: collection, error } = await supabase.from('collections').select('id').eq('id', collectionId).eq('user_id', user.id).maybeSingle()
+
+  if (error || !collection) {
+    return { ok: false, error: 'Coleção não encontrada.' }
+  }
+
+  const page = await searchCards(supabase, user.id, trimmed, cursor, collectionId)
   return { ok: true, page }
 }
 
